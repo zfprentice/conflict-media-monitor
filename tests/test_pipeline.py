@@ -92,3 +92,21 @@ def test_config_is_valid():
 def test_url_builder():
     u = gdelt.build_url('(Sudan OR "Rapid Support Forces")', "timelinevolraw")
     assert "mode=timelinevolraw" in u and "format=json" in u and "Rapid+Support" in u
+
+
+def test_missing_framing_series_is_none_not_zero():
+    vol = gdelt.parse_timeline_volraw(load("volraw.json"))
+    m = summarise(merge_daily(vol, {}, {}, {}))
+    assert m["violence_share_7d"] is None and m["peace_share_7d"] is None
+    assert m["tone_7d"] is None
+    assert m["share_latest"] == 90.0
+
+
+def test_merge_keeps_old_metrics_when_gdelt_fails():
+    import build_data
+    old = {"iso3": "SDN", "metrics": {"z_attention": 1}, "series": [1], "headlines": [{"title": "old"}], "fetched_at": "x"}
+    rec = build_data.merge(old, {"iso3": "SDN", "name": "Sudan"}, {"headlines": [{"title": "new"}]})
+    assert rec["stale"] is True and rec["pending"] is False
+    assert rec["metrics"] == {"z_attention": 1} and rec["headlines"][0]["title"] == "new"
+    rec = build_data.merge(None, {"iso3": "SDN"}, {"headlines": None})
+    assert rec["pending"] is True and rec["stale"] is False

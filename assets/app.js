@@ -159,9 +159,11 @@ function bars(pairs) {
 function renderStamp() {
   const d = S.data, r = d.run || {};
   const stale = d.countries.filter((c) => c.stale).map((c) => c.name);
+  const pending = d.countries.filter((c) => c.pending).length;
   const age = (Date.now() - new Date(d.generated_at)) / 36e5;
   $("#stamp").innerHTML = `Updated <b>${stampFmt(d.generated_at)}</b> Brussels time (${ago(d.generated_at)}), from GDELT and Google News.` +
-    (stale.length ? ` <span class="stale-note">Kept previous data for ${esc(stale.join(", "))}.</span>` : "") +
+    (pending ? ` <span class="stale-note">Metrics for ${pending} ${pending === 1 ? "country are" : "countries are"} still loading; they fill in over the next few updates. Headlines are live for all.</span>` : "") +
+    (stale.length ? ` <span class="faint">Earlier metrics shown for ${esc(stale.join(", "))}.</span>` : "") +
     (age > 13 ? ` <span class="stale-note">The scheduled update looks overdue.</span>` : "");
   document.title = `${d.site_title} — ${d.countries.length} countries`;
   $("#title").innerHTML = `Media attention across <span class="count">${d.countries.length}</span> countries`;
@@ -179,8 +181,8 @@ function renderFooter() {
   </div><div>
     <h3>Data</h3>
     <dl><dt>Download</dt><dd><a href="data/latest.json">latest.json</a>, <a href="data/history.csv">history.csv</a></dd>
-    <dt>Last run</dt><dd>${f0(r.gdelt_calls)} GDELT requests in ${f0(r.seconds / 60)} min, ${r.fresh_countries}/${r.total_countries} countries refreshed</dd>
-    <dt>Schedule</dt><dd>Every 6 hours via GitHub Actions</dd>
+    <dt>Last run</dt><dd>${f0(r.gdelt_calls)} GDELT requests in ${f0(r.seconds / 60)} min, ${r.fresh_countries}/${r.total_countries} countries refreshed${r.gdelt_down ? " (GDELT stopped responding partway)" : ""}</dd>
+    <dt>Schedule</dt><dd>Every 3 hours via GitHub Actions, oldest country first</dd>
     <dt>Sources</dt><dd><a href="https://www.gdeltproject.org/" rel="noopener">GDELT DOC 2.0</a>, <a href="https://news.google.com" rel="noopener">Google News</a></dd></dl>
   </div></div>`;
 }
@@ -351,7 +353,7 @@ function renderKpis() {
 
 /* ---------------- render: ledger ---------------- */
 const COLS = [
-  { key: "name", label: "Country", get: (c) => c.name, cell: (c) => `<span class="tier ${c.tier}" title="${tierLabel(c.tier)}"></span>${esc(c.name)}${(c.flags || []).some((f) => f.level !== "info" && f.level !== "low") ? `<span class="flagdot" title="${esc(c.flags.map((f) => f.text).join("; "))}"></span>` : ""}<span class="reg">${esc(c.region)}</span>`, cls: "c" },
+  { key: "name", label: "Country", get: (c) => c.name, cell: (c) => `<span class="tier ${c.tier}" title="${tierLabel(c.tier)}"></span>${esc(c.name)}${(c.flags || []).some((f) => f.level !== "info" && f.level !== "low") ? `<span class="flagdot" title="${esc(c.flags.map((f) => f.text).join("; "))}"></span>` : ""}<span class="reg">${esc(c.region)}${c.pending ? ", metrics loading" : ""}</span>`, cls: "c" },
   { key: "share", label: "Today<br>per 10k", get: (c) => c.metrics?.share_latest, cell: (c) => f1(c.metrics?.share_latest) },
   { key: "z", label: "Anomaly<br>robust z", get: (c) => c.metrics?.z_attention, cell: (c) => `<span class="zbar"><span class="num ${c.metrics?.z_attention >= 2 ? "hot" : ""}">${sgn(c.metrics?.z_attention)}</span>${zBar(c.metrics?.z_attention)}</span>` },
   { key: "pctile", label: "90-day<br>percentile", get: (c) => c.metrics?.attention_pctile_90d, cell: (c) => f0(c.metrics?.attention_pctile_90d) },
@@ -481,7 +483,7 @@ function openCountry(iso) {
   const cw = Math.max(320, Math.min(660, Math.min(innerWidth, 760) - 70));
   const ch = (h) => Math.round(h * (cw < 500 ? 1.15 : 1));
   d.innerHTML = `<div class="d-head"><div><h2 id="dTitle">${esc(c.name)}</h2>
-      <div class="sub">${esc(c.region)}, ${tierLabel(c.tier).toLowerCase()}. Latest day ${m.latest_day ? dayLabel(m.latest_day) : "–"}${m.latest_partial ? " (so far)" : ""}.${c.stale ? " <span class='stale-note'>Showing data from a previous run.</span>" : ""}</div></div>
+      <div class="sub">${esc(c.region)}, ${tierLabel(c.tier).toLowerCase()}. Latest day ${m.latest_day ? dayLabel(m.latest_day) : "–"}${m.latest_partial ? " (so far)" : ""}.${c.pending ? " <span class='stale-note'>Metrics still loading; headlines are live.</span>" : c.stale ? ` <span class='faint'>Metrics from ${c.fetched_at ? ago(c.fetched_at) : "an earlier run"}.</span>` : ""}</div></div>
       <button class="close" id="dClose" aria-label="Close">×</button></div>
     <div class="d-body">
       ${(c.flags || []).length ? `<div class="flags">${c.flags.map((f) => `<div class="flag ${f.level}">${esc(f.text)}</div>`).join("")}</div>` : ""}

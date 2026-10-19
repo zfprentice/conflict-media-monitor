@@ -27,13 +27,24 @@ def build_url(query: str, mode: str, timespan: str = "3months", **extra) -> str:
 
 
 class Client:
-    def __init__(self, min_interval: float = 6.0, retries: int = 4, timeout: int = 60):
+    """Rate-limited GDELT client with a circuit breaker.
+
+    GDELT answers slowly (often 10-40 s) and intermittently from cloud IPs, so
+    each call has a short timeout, at most one retry, and after several
+    consecutive failures the client declares GDELT down for the rest of the run.
+    """
+
+    def __init__(self, min_interval: float = 5.5, retries: int = 2, timeout: int = 40, trip_after: int = 5):
         self.min_interval = min_interval
         self.retries = retries
         self.timeout = timeout
+        self.trip_after = trip_after
         self._last = 0.0
+        self._streak = 0
+        self.down = False
         self.calls = 0
         self.failures = 0
+        self.log: list[dict] = []
 
     def _wait(self):
         gap = time.monotonic() - self._last
@@ -41,31 +52,49 @@ class Client:
             time.sleep(self.min_interval - gap)
         self._last = time.monotonic()
 
+    def _record(self, mode: str, t0: float, outcome: str):
+        self.log.append({"mode": mode, "s": round(time.monotonic() - t0, 1), "outcome": outcome})
+
     def get(self, url: str) -> dict | None:
+        if self.down:
+            return None
+        mode = urllib.parse.parse_qs(urllib.parse.urlparse(url).query).get("mode", ["?"])[0]
         for attempt in range(self.retries):
             self._wait()
             self.calls += 1
+            t0 = time.monotonic()
             try:
                 req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
                 with urllib.request.urlopen(req, timeout=self.timeout) as r:
                     body = r.read().decode("utf-8", errors="replace")
-            except Exception as exc:  # network error, 429, 5xx
-                print(f"  ! request failed ({exc}); retry {attempt + 1}/{self.retries}")
-                time.sleep(10 * (attempt + 1))
+            except Exception as exc:  # timeout, 429, 5xx, connection reset
+                self._record(mode, t0, f"error: {type(exc).__name__}: {str(exc)[:80]}")
+                print(f"  ! {mode} failed ({type(exc).__name__}: {str(exc)[:80]})", flush=True)
+                time.sleep(8)
                 continue
             body = body.strip()
             if not body:
+                self._record(mode, t0, "empty")
+                self._streak = 0
                 return {}  # GDELT returns an empty body when nothing matches
             try:
-                return json.loads(body)
+                data = json.loads(body)
             except json.JSONDecodeError:
                 # Rate-limit or query-syntax message in plain text
-                print(f"  ! non-JSON reply: {body[:120]!r}")
+                self._record(mode, t0, "text: " + body[:80])
+                print(f"  ! {mode} non-JSON reply: {body[:100]!r}", flush=True)
                 if "limit" in body.lower() or "please" in body.lower():
-                    time.sleep(15 * (attempt + 1))
+                    time.sleep(12)
                     continue
                 break
+            self._record(mode, t0, "ok")
+            self._streak = 0
+            return data
         self.failures += 1
+        self._streak += 1
+        if self._streak >= self.trip_after:
+            self.down = True
+            print(f"  !! {self._streak} consecutive GDELT failures; skipping GDELT for the rest of this run", flush=True)
         return None
 
 

@@ -58,6 +58,8 @@ def _sum(rows, key):
 
 
 def _ratio(rows, num, den):
+    if not any(r[num] is not None for r in rows):
+        return None  # series missing (e.g. that GDELT call failed), not zero
     d = _sum(rows, den)
     return _sum(rows, num) / d if d else None
 

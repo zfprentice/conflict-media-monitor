@@ -2,7 +2,7 @@ name: Update media data
 
 on:
   schedule:
-    - cron: '17 */6 * * *'   # every 6 hours (offset from :00 to dodge the GitHub cron rush)
+    - cron: '17 */3 * * *'   # every 3 hours (offset from :00 to dodge the GitHub cron rush)
   workflow_dispatch:          # "Run workflow" button in the Actions tab
   push:
     branches: [main]
@@ -20,7 +20,7 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 50
     steps:
       - uses: actions/checkout@v5
 
@@ -28,8 +28,11 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Fetch GDELT and Google News data (~15 min, GDELT is rate limited)
+      - name: Fetch GDELT and Google News data (time-boxed; slow countries roll to the next run)
         if: github.event_name != 'push'
+        env:
+          BUDGET_MIN: '32'
+          PYTHONUNBUFFERED: '1'
         run: python build_data.py
 
       - name: Commit updated data

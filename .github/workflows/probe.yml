@@ -6,17 +6,17 @@ jobs:
     steps:
       - name: probe
         run: |
-          curl -s --max-time 30 http://data.gdeltproject.org/gdeltv2/lastupdate.txt -o last.txt -w "%{http_code}" > code.txt || true
+          curl -sL --max-time 30 https://data.gdeltproject.org/gdeltv2/lastupdate.txt -o last.txt -w "%{http_code}" > code.txt || true
           echo "::notice title=lastupdate::code $(cat code.txt) | $(head -c 300 last.txt | tr '\n' ' ')"
-          u=$(head -1 last.txt | awk '{print $3}')
-          c=$(curl -s --max-time 60 -o e.zip -w "%{http_code} %{size_download}B %{time_total}s" "$u" || true)
+          u=$(head -1 last.txt | awk '{print $3}' | sed 's/^http:/https:/')
+          c=$(curl -sL --max-time 60 -o e.zip -w "%{http_code} %{size_download}B %{time_total}s" "$u" || true)
           echo "::notice title=export zip::$u -> $c"
-          c2=$(curl -s --max-time 60 -o e2.zip -w "%{http_code} %{size_download}B %{time_total}s" "${u/http:/https:}" || true)
+          c2=$(curl -sL --max-time 60 -o e2.zip -w "%{http_code} %{size_download}B %{time_total}s" "$u" || true)
           echo "::notice title=export zip https::$c2"
           python3 -c "import zipfile,io;z=zipfile.ZipFile('e.zip');n=z.namelist()[0];d=z.read(n).decode('utf-8','replace').splitlines();print('::notice title=parsed::',n,len(d),'rows',len(d[0].split(chr(9))),'cols |',d[0][:250].replace(chr(9),' | '))" || echo "::notice title=parsed::failed $(head -c 200 e.zip | tr -cd '[:print:]')"
           d=$(date -u -d '1 day ago' +%Y%m%d)
-          for h in 00 01 02 03 04 05 06 07 08 09; do for m in 00 15 30 45; do echo "http://data.gdeltproject.org/gdeltv2/${d}${h}${m}00.export.CSV.zip"; done; done > urls.txt
-          s=$(date +%s); xargs -P 8 -n 1 curl -s --max-time 60 -O < urls.txt || true; e=$(date +%s)
+          for h in 00 01 02 03 04 05 06 07 08 09; do for m in 00 15 30 45; do echo "https://data.gdeltproject.org/gdeltv2/${d}${h}${m}00.export.CSV.zip"; done; done > urls.txt
+          s=$(date +%s); xargs -P 8 -n 1 curl -sL --max-time 60 -O < urls.txt || true; e=$(date +%s)
           echo "::notice title=bulk::$(ls *.export.CSV.zip 2>/dev/null | wc -l) of 40 files, $(du -ch *.export.CSV.zip 2>/dev/null | tail -1) in $((e-s))s; sizes: $(ls -la *.export.CSV.zip | awk '{print $5}' | sort -n | head -3 | tr '\n' ' ')"
-          c3=$(curl -s --max-time 60 -o gkg.zip -w "%{http_code} %{size_download}B %{time_total}s" "$(sed -n 3p last.txt | awk '{print $3}')" || true)
+          c3=$(curl -sL --max-time 60 -o gkg.zip -w "%{http_code} %{size_download}B %{time_total}s" "$(sed -n 3p last.txt | awk '{print $3}')" || true)
           echo "::notice title=gkg zip::$c3"

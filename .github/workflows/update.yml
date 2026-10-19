@@ -28,10 +28,10 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Fetch GDELT and Google News data (time-boxed; slow countries roll to the next run)
+      - name: Ingest GDELT event files and Google News headlines (time-boxed; backlog rolls to the next run)
         if: github.event_name != 'push'
         env:
-          BUDGET_MIN: '32'
+          BUDGET_MIN: '30'
           PYTHONUNBUFFERED: '1'
         run: python build_data.py
 

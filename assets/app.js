@@ -50,7 +50,7 @@ const METRICS = {
     legend: () => ({ grad: [css("--ink-3"), css("--neutral"), css("--attn-1"), css("--attn-2"), css("--attn-3")], lo: "−3 quiet", hi: "+4 spike" }),
   },
   share: {
-    label: "Share", long: "Articles per 10,000 monitored worldwide, last 7 days",
+    label: "Share", long: "Share of all news coverage GDELT coded worldwide, per 10,000, last 7 days",
     get: (c) => c.metrics?.share_7d, fmt: (x) => f1(x),
     color: (x, ext) => x == null ? null : ramp([css("--attn-0"), css("--attn-1"), css("--attn-2"), css("--attn-3")], Math.log(x / ext.min) / Math.log(ext.max / ext.min || 2)),
     legend: (ext) => ({ grad: [css("--attn-0"), css("--attn-1"), css("--attn-2"), css("--attn-3")], lo: f1(ext.min), hi: f1(ext.max) + " per 10k" }),
@@ -62,13 +62,13 @@ const METRICS = {
     legend: () => ({ grad: [css("--neg"), css("--neutral"), css("--pos")], lo: "−6 grim", hi: "+0.5" }),
   },
   violence: {
-    label: "Violence", long: "Share of a country's coverage that mentions killings, attacks, strikes or clashes (7 days)",
+    label: "Violence", long: "Share of a country's coverage about assaults, armed clashes or mass violence (7 days)",
     get: (c) => c.metrics?.violence_share_7d, fmt: (x) => f0(x) + "%",
     color: (x) => x == null ? null : ramp([css("--neutral"), css("--neg")], x / 70),
     legend: () => ({ grad: [css("--neutral"), css("--neg")], lo: "0%", hi: "70%+" }),
   },
   peace: {
-    label: "Peace talk", long: "Share of coverage mentioning ceasefires, negotiations, mediation or dialogue (7 days)",
+    label: "Peace talk", long: "Share of coverage about negotiations, mediation, agreements or ceasefires (7 days)",
     get: (c) => c.metrics?.peace_share_7d, fmt: (x) => f0(x) + "%",
     color: (x) => x == null ? null : ramp([css("--neutral"), css("--pos")], x / 40),
     legend: () => ({ grad: [css("--neutral"), css("--pos")], lo: "0%", hi: "40%+" }),
@@ -158,13 +158,12 @@ function bars(pairs) {
 /* ---------------- render: masthead/footer ---------------- */
 function renderStamp() {
   const d = S.data, r = d.run || {};
-  const stale = d.countries.filter((c) => c.stale).map((c) => c.name);
   const pending = d.countries.filter((c) => c.pending).length;
   const age = (Date.now() - new Date(d.generated_at)) / 36e5;
-  $("#stamp").innerHTML = `Updated <b>${stampFmt(d.generated_at)}</b> Brussels time (${ago(d.generated_at)}), from GDELT and Google News.` +
-    (pending ? ` <span class="stale-note">Metrics for ${pending} ${pending === 1 ? "country are" : "countries are"} still loading; they fill in over the next few updates. Headlines are live for all.</span>` : "") +
-    (stale.length ? ` <span class="faint">Earlier metrics shown for ${esc(stale.join(", "))}.</span>` : "") +
-    (age > 13 ? ` <span class="stale-note">The scheduled update looks overdue.</span>` : "");
+  $("#stamp").innerHTML = `Updated <b>${stampFmt(d.generated_at)}</b> Brussels time (${ago(d.generated_at)}), from GDELT event data and Google News.` +
+    (r.complete_days != null && r.complete_days < 35 ? ` <span class="stale-note">History is still backfilling (${r.complete_days} of 92 days so far), so baselines and anomaly scores firm up over the next few updates.</span>` : "") +
+    (pending ? ` <span class="stale-note">No coverage yet for ${pending} ${pending === 1 ? "country" : "countries"}.</span>` : "") +
+    (age > 7 ? ` <span class="stale-note">The scheduled update looks overdue.</span>` : "");
   document.title = `${d.site_title} — ${d.countries.length} countries`;
   $("#title").innerHTML = `Media attention across <span class="count">${d.countries.length}</span> countries`;
 }
@@ -173,17 +172,19 @@ function renderFooter() {
   const r = S.data.run || {};
   $("#footer").innerHTML = `<div class="cols"><div>
     <h3>How to read this</h3>
-    <p><b>Share</b> is a country's articles per 10,000 articles GDELT monitored worldwide that day, so it is comparable across days even when global news volume swings.
+    <p>Every 15 minutes GDELT machine-codes world news (in English and translated from about 65 languages) into events: who did what to whom, where, and how many articles reported it.
+    A country's <b>coverage</b> is the article count of events located in it or involving its government, groups or people. Because one article can report several events, the unit is article mentions, not unique articles.</p>
+    <p><b>Share</b> divides that coverage by all coverage GDELT coded worldwide the same day, so it stays comparable when global news volume swings.
     <b>Anomaly</b> is a robust z-score: today's share minus the median of the previous 28 days, divided by 1.4826 × the median absolute deviation. Above +2 is unusual; above +3 is a spike.</p>
-    <p><b>Tone</b> is GDELT's average document tone (roughly −10 to +10). <b>Violence</b> and <b>peace talk</b> are the share of a country's articles that also match a fixed keyword set:
-    <span class="faint">${esc(S.data.framing?.violence || "")}</span> and <span class="faint">${esc(S.data.framing?.peace || "")}</span>.</p>
-    <p>Queries are keyword-based, so ambiguous names (Georgia, Panama) carry some noise, and GDELT over-represents online English-language outlets. Treat levels with care and lean on changes within a country.</p>
+    <p><b>Tone</b> is GDELT's article-weighted average tone (roughly −10 to +10). <b>Violence</b> is the share of coverage about CAMEO event types 18–20 (assault, armed clashes, mass violence).
+    <b>Peace talk</b> is the share about CAMEO 036, 045, 046, 057 and 087 (intent to negotiate, mediation, negotiation, signing agreements, de-escalation and ceasefires).</p>
+    <p>Story titles in the long-tail lists come from article URLs, since GDELT doesn't publish headlines; mainstream headlines come from Google News. GDELT's automatic coding misfires on some stories, so lean on changes within a country more than exact levels.</p>
   </div><div>
     <h3>Data</h3>
-    <dl><dt>Download</dt><dd><a href="data/latest.json">latest.json</a>, <a href="data/history.csv">history.csv</a></dd>
-    <dt>Last run</dt><dd>${f0(r.gdelt_calls)} GDELT requests in ${f0(r.seconds / 60)} min, ${r.fresh_countries}/${r.total_countries} countries refreshed${r.gdelt_down ? " (GDELT stopped responding partway)" : ""}</dd>
-    <dt>Schedule</dt><dd>Every 3 hours via GitHub Actions, oldest country first</dd>
-    <dt>Sources</dt><dd><a href="https://www.gdeltproject.org/" rel="noopener">GDELT DOC 2.0</a>, <a href="https://news.google.com" rel="noopener">Google News</a></dd></dl>
+    <dl><dt>Download</dt><dd><a href="data/latest.json">latest.json</a>, <a href="data/daily.csv">daily.csv</a> (per country per day, with event-type counts)</dd>
+    <dt>Last run</dt><dd>${f0(r.slots_ingested)} new GDELT files in ${f0(r.seconds / 60)} min${r.slots_remaining ? `, ${f0(r.slots_remaining)} older ones queued` : ""}</dd>
+    <dt>Schedule</dt><dd>Every 3 hours via GitHub Actions</dd>
+    <dt>Sources</dt><dd><a href="https://www.gdeltproject.org/data.html#rawdatafiles" rel="noopener">GDELT 2.0 event files</a>, <a href="https://news.google.com" rel="noopener">Google News</a></dd></dl>
   </div></div>`;
 }
 
@@ -322,14 +323,11 @@ function renderMovers() {
 function renderWatch() {
   const w = (S.data.watch || [])[0];
   if (!w) { $("#watch").innerHTML = ""; return; }
-  const m = w.metrics || {};
-  const items = [...(w.headlines || []).map((h) => ({ ...h, when: h.published, src: h.source })), ...(w.gdelt?.articles || []).map((a) => ({ title: a.title, url: a.url, when: a.seen, src: a.domain }))]
-    .sort((a, b) => (b.when || "").localeCompare(a.when || ""));
-  const seen = new Set(), uniq = items.filter((i) => { const k = i.title.toLowerCase().slice(0, 70); if (seen.has(k)) return false; seen.add(k); return true; }).slice(0, 5);
+  const items = (w.headlines || []).slice(0, 5);
   $("#watch").innerHTML = `<h2>${esc(w.label)} <small>in the news</small></h2>
-    <div class="big">${f0(m.articles_7d)}</div><div class="muted" style="font-size:13px">articles in the last 7 days${m.change_7d_pct != null ? `, ${pct(m.change_7d_pct)} on the week before` : ""}</div>
-    ${uniq.length ? `<ul>${uniq.map((i) => `<li><a href="${esc(i.url)}" target="_blank" rel="noopener">${esc(i.title)}</a><div class="faint" style="font-size:12px">${esc(i.src)}, ${ago(i.when)}</div></li>`).join("")}</ul>`
-      : `<p class="empty">No mentions picked up in the last few days.</p>`}`;
+    <div class="big">${f0(w.count_7d)}${w.count_7d >= 100 ? "+" : ""}</div><div class="muted" style="font-size:13px">Google News results in the last 7 days</div>
+    ${items.length ? `<ul>${items.map((i) => `<li><a href="${esc(i.url)}" target="_blank" rel="noopener">${esc(i.title)}</a><div class="faint" style="font-size:12px">${esc(i.source)}, ${ago(i.published)}</div></li>`).join("")}</ul>`
+      : `<p class="empty">No mentions in the last 7 days.</p>`}`;
 }
 
 function renderKpis() {
@@ -342,7 +340,7 @@ function renderKpis() {
   const peace = [...cs].filter((c) => c.metrics.peace_share_7d != null).sort((a, b) => b.metrics.peace_share_7d - a.metrics.peace_share_7d)[0];
   const k = (v, l, s) => `<div class="kpi"><div class="v num">${v}</div><div class="l">${l}</div><div class="s">${s}</div></div>`;
   $("#kpis").innerHTML = [
-    k(f0(sum), "Articles in 7 days", `across ${cs.length} countries`),
+    k(f0(sum), "Coverage in 7 days", `article mentions across ${cs.length} countries`),
     k(spikes.length, "Countries spiking", spikes.length ? esc(spikes.map((c) => c.name).join(", ")) : "nothing above +2 today"),
     k(top ? esc(top.name) : "–", "Most covered", top ? `${f1(top.metrics.share_7d)} per 10k articles` : ""),
     k(riser ? esc(riser.name) : "–", "Fastest riser", riser ? `share ${pct(riser.metrics.share_change_7d_pct)} week on week` : ""),
@@ -357,12 +355,12 @@ const COLS = [
   { key: "share", label: "Today<br>per 10k", get: (c) => c.metrics?.share_latest, cell: (c) => f1(c.metrics?.share_latest) },
   { key: "z", label: "Anomaly<br>robust z", get: (c) => c.metrics?.z_attention, cell: (c) => `<span class="zbar"><span class="num ${c.metrics?.z_attention >= 2 ? "hot" : ""}">${sgn(c.metrics?.z_attention)}</span>${zBar(c.metrics?.z_attention)}</span>` },
   { key: "pctile", label: "90-day<br>percentile", get: (c) => c.metrics?.attention_pctile_90d, cell: (c) => f0(c.metrics?.attention_pctile_90d) },
-  { key: "a7", label: "Articles<br>7 days", get: (c) => c.metrics?.articles_7d, cell: (c) => f0(c.metrics?.articles_7d) },
+  { key: "a7", label: "Coverage<br>7 days", get: (c) => c.metrics?.articles_7d, cell: (c) => f0(c.metrics?.articles_7d) },
   { key: "ch7", label: "Week on<br>week", get: (c) => c.metrics?.change_7d_pct, cell: (c) => `<span class="${c.metrics?.change_7d_pct > 0 ? "up" : c.metrics?.change_7d_pct < 0 ? "down" : ""}">${pct(c.metrics?.change_7d_pct)}</span>` },
   { key: "trend", label: "30-day trend<br>per week", get: (c) => c.metrics?.trend_30d_pct_per_week, cell: (c) => pct(c.metrics?.trend_30d_pct_per_week) },
   { key: "tone", label: "Tone<br>7 days", get: (c) => c.metrics?.tone_7d, cell: (c) => `${sgn(c.metrics?.tone_7d, 2)} <span class="faint" style="font-size:12px">${c.metrics?.tone_delta != null ? "(" + sgn(c.metrics.tone_delta, 1) + ")" : ""}</span>` },
-  { key: "viol", label: "Violence<br>framing", get: (c) => c.metrics?.violence_share_7d, cell: (c) => c.metrics?.violence_share_7d == null ? "–" : f0(c.metrics.violence_share_7d) + "%" },
-  { key: "peace", label: "Peace<br>framing", get: (c) => c.metrics?.peace_share_7d, cell: (c) => c.metrics?.peace_share_7d == null ? "–" : f0(c.metrics.peace_share_7d) + "%" },
+  { key: "viol", label: "Violence<br>share", get: (c) => c.metrics?.violence_share_7d, cell: (c) => c.metrics?.violence_share_7d == null ? "–" : f0(c.metrics.violence_share_7d) + "%" },
+  { key: "peace", label: "Peace talk<br>share", get: (c) => c.metrics?.peace_share_7d, cell: (c) => c.metrics?.peace_share_7d == null ? "–" : f0(c.metrics.peace_share_7d) + "%" },
   { key: "spark", label: "90 days", get: () => 0, cell: (c) => sparkline((c.series || []).map((p) => p.s), 120, 26, c.metrics?.z_attention >= 2), nosort: true },
 ];
 function renderLedger() {
@@ -418,13 +416,13 @@ function renderScatter() {
     g += `<line class="grid" x1="${X(vx)}" x2="${X(vx)}" y1="${T}" y2="${H - B}"/><text x="${X(vx)}" y="${H - B + 14}" text-anchor="middle">${f0(vx)}%</text>`;
     g += `<line class="grid" x1="${L}" x2="${W - R}" y1="${Y(vy)}" y2="${Y(vy)}"/><text x="${L - 6}" y="${Y(vy) + 3.5}" text-anchor="end">${f0(vy)}%</text>`; }
   g += `<line x1="${X(xm)}" x2="${X(xm)}" y1="${T}" y2="${H - B}" stroke="var(--ink-3)" stroke-dasharray="2 3"/><line x1="${L}" x2="${W - R}" y1="${Y(ym)}" y2="${Y(ym)}" stroke="var(--ink-3)" stroke-dasharray="2 3"/>`;
-  g += `<text x="${W - R}" y="${H - 4}" text-anchor="end">violence framing →</text><text x="${L}" y="${T - 2}" >↑ peace framing</text>`;
+  g += `<text x="${W - R}" y="${H - 4}" text-anchor="end">violence share →</text><text x="${L}" y="${T - 2}" >↑ peace-talk share</text>`;
   const pts = cs.sort((a, b) => (b.metrics.articles_7d || 0) - (a.metrics.articles_7d || 0)).map((c) => {
     const r = 4 + 18 * Math.sqrt((c.metrics.articles_7d || 0) / amax), x = X(c.metrics.violence_share_7d), y = Y(c.metrics.peace_share_7d);
     const hot = c.metrics.z_attention >= 2;
     return `<g class="pt" data-iso="${c.iso3}"><circle cx="${x}" cy="${y}" r="${r}" fill="${hot ? "var(--signal)" : "var(--attn-2)"}" fill-opacity=".35" stroke="${hot ? "var(--signal)" : "var(--attn-2)"}"><title>${esc(c.name)}: ${f0(c.metrics.violence_share_7d)}% violence, ${f0(c.metrics.peace_share_7d)}% peace</title></circle><text class="lab" x="${x}" y="${y - r - 3}" text-anchor="middle">${esc(c.name)}</text></g>`;
   }).join("");
-  $("#scatter").innerHTML = `<h3>Violence versus peace framing</h3><svg viewBox="0 0 ${W} ${H}">${g}${pts}</svg>`;
+  $("#scatter").innerHTML = `<h3>Violence versus peace talk</h3><svg viewBox="0 0 ${W} ${H}">${g}${pts}</svg>`;
   $("#scatter").onclick = (e) => { const p = e.target.closest(".pt"); if (p) openCountry(p.dataset.iso); };
 
   // Tone ranking: dot plot with arrow from prior-30d tone to 7d tone
@@ -452,7 +450,7 @@ function wireItems() {
     if (S.tier !== "all" && c.tier !== S.tier) return;
     if (S.wireCountry !== "all" && c.iso3 !== S.wireCountry) return;
     if (S.wireKind !== "gdelt") (c.headlines || []).forEach((h) => items.push({ c, title: h.title, url: h.url, src: h.source, when: h.published, kind: "news" }));
-    if (S.wireKind !== "news") (c.gdelt?.articles || []).forEach((a) => items.push({ c, title: a.title, url: a.url, src: a.domain, when: a.seen, kind: "gdelt", from: a.country }));
+    if (S.wireKind !== "news") (c.gdelt?.articles || []).forEach((a) => items.push({ c, title: a.title, url: a.url, src: a.domain, when: a.seen, kind: "gdelt", from: a.mentions ? `${a.mentions} articles` : "" }));
   });
   const seen = new Set();
   return items.filter((i) => (!S.q || i.title.toLowerCase().includes(S.q) || i.c.name.toLowerCase().includes(S.q)))
@@ -490,24 +488,24 @@ function openCountry(iso) {
       <div class="d-kpis">
         ${kp(f1(m.share_latest), "Today per 10k", `${f0(m.articles_latest)} articles`)}
         ${kp(`<span class="${m.z_attention >= 2 ? "hot" : ""}">${sgn(m.z_attention)}</span>`, "Anomaly (robust z)", `${f0(m.attention_pctile_90d)}th percentile of 90 days`)}
-        ${kp(f0(m.articles_7d), "Articles, 7 days", `${pct(m.change_7d_pct)} week on week`)}
+        ${kp(f0(m.articles_7d), "Coverage, 7 days", `${pct(m.change_7d_pct)} week on week`)}
         ${kp(pct(m.trend_30d_pct_per_week), "30-day trend", "share, per week")}
         ${kp(sgn(m.tone_7d, 2), "Tone, 7 days", `${sgn(m.tone_delta, 2)} vs prior 30 days`)}
-        ${kp(m.violence_share_7d == null ? "–" : f0(m.violence_share_7d) + "%", "Violence framing", `was ${f0(m.violence_share_prev30d)}%`)}
-        ${kp(m.peace_share_7d == null ? "–" : f0(m.peace_share_7d) + "%", "Peace framing", `was ${f0(m.peace_share_prev30d)}%`)}
+        ${kp(m.violence_share_7d == null ? "–" : f0(m.violence_share_7d) + "%", "Violence share", `was ${f0(m.violence_share_prev30d)}%`)}
+        ${kp(m.peace_share_7d == null ? "–" : f0(m.peace_share_7d) + "%", "Peace-talk share", `was ${f0(m.peace_share_prev30d)}%`)}
         ${kp(f1(m.volatility_30d), "Volatility", "30-day coefficient of variation")}
       </div>
       <div class="panel chart"><h3>Share of world coverage <small>per 10k articles, band = 28-day median ± 2 MAD</small></h3>${tsChart({ dates, lines: [{ vals: shares, color: "var(--attn-2)" }], band, marks, zero: true, width: cw, height: ch(180) })}</div>
       <div class="panel chart"><h3>Tone <small>daily (thin) and 7-day average</small></h3>${tsChart({ dates, lines: [{ vals: tone, color: "var(--ink-3)", width: 1 }, { vals: rollingMean(tone), color: "var(--neg)", width: 2 }], height: ch(150), width: cw, yfmt: (v) => v.toFixed(1), refLine: m.tone_prev30d })}</div>
       <div class="panel chart"><h3>Framing <small>7-day rolling share of coverage: <span style="color:var(--neg)">violence</span>, <span style="color:var(--pos)">peace talk</span></small></h3>${tsChart({ dates, lines: [{ vals: viol, color: "var(--neg)" }, { vals: peace, color: "var(--pos)" }], height: ch(150), width: cw, yfmt: (v) => f0(v) + "%", zero: true })}</div>
       <div class="grid2">
-        <div class="panel"><h3>Top outlets <small>last 3 days</small></h3>${bars(c.gdelt?.top_domains)}</div>
-        <div class="panel"><h3>Where coverage comes from</h3>${bars(c.gdelt?.source_countries)}</div>
+        <div class="panel"><h3>Top outlets <small>most-covered stories, 3 days</small></h3>${bars(c.gdelt?.top_domains)}</div>
+        <div class="panel"><h3>What is being reported <small>event types, 7 days</small></h3>${bars(c.gdelt?.event_mix)}</div>
       </div>
       <div class="panel"><h3>Mainstream headlines <small>Google News, last 2 days</small></h3>
         ${(c.headlines || []).length ? `<ul class="list">${c.headlines.map((h) => `<li><a href="${esc(h.url)}" target="_blank" rel="noopener">${esc(h.title)}</a><div class="meta">${esc(h.source)}, ${ago(h.published)}</div></li>`).join("")}</ul>` : `<p class="empty">No headlines in this run.</p>`}</div>
-      <div class="panel"><h3>Long tail <small>GDELT, last 3 days, all outlets</small></h3>
-        ${(c.gdelt?.articles || []).length ? `<ul class="list">${c.gdelt.articles.slice(0, 25).map((a) => `<li><a href="${esc(a.url)}" target="_blank" rel="noopener">${esc(a.title)}</a><div class="meta">${esc(a.domain)}, ${esc(a.country)}${a.language && a.language !== "English" ? `, ${esc(a.language)}` : ""}, ${ago(a.seen)}</div></li>`).join("")}</ul>` : `<p class="empty">No articles in this run.</p>`}</div>
+      <div class="panel"><h3>Most-covered stories <small>GDELT, last 3 days, all languages</small></h3>
+        ${(c.gdelt?.articles || []).length ? `<ul class="list">${c.gdelt.articles.slice(0, 25).map((a) => `<li><a href="${esc(a.url)}" target="_blank" rel="noopener">${esc(a.title)}</a><div class="meta">${esc(a.domain)}${a.kind ? `, ${esc(a.kind.toLowerCase())}` : ""}, ${a.mentions} ${a.mentions === 1 ? "article" : "articles"}, ${ago(a.seen)}</div></li>`).join("")}</ul>` : `<p class="empty">No articles in this run.</p>`}</div>
       <div class="panel"><h3>Go deeper</h3><div class="links">
         <a href="https://news.google.com/search?q=${nq}&hl=en-GB&gl=GB&ceid=GB:en" target="_blank" rel="noopener">Google News search</a>
         <a href="https://api.gdeltproject.org/api/v2/doc/doc?query=${gq}&mode=artlist&maxrecords=250&timespan=1d&sort=datedesc" target="_blank" rel="noopener">GDELT live article list</a>

@@ -1,112 +1,126 @@
 import json
+from datetime import datetime, timezone
 from pathlib import Path
 
-from monitor import gdelt, gnews
-from monitor.metrics import flags, latest_index, merge_daily, robust_z, summarise, log_trend, percentile_rank
+from monitor import events, gnews
+from monitor.metrics import flags, latest_index, log_trend, merge_daily, percentile_rank, robust_z, summarise
 
 FX = Path(__file__).parent / "fixtures"
+CFG = json.loads((Path(__file__).parent.parent / "config" / "countries.json").read_text())
 
 
-def load(name):
-    return json.loads((FX / name).read_text())
+def synthetic_rows(spike=True, framing=True):
+    """92 days: steady ~30 per 10k, last 3 days 90 per 10k; today partial (60% volume)."""
+    vol, tone, viol = {}, {}, {}
+    for i in range(92):
+        d = f"2026-{7 + (19 + i) // 31:02d}-{(19 + i) % 31 + 1:02d}"
+        norm = 100000 + (i * 37 % 7) * 1000
+        base = 300 + (i * 13 % 9)
+        if spike and i >= 89:
+            base = 900
+        if i == 91:
+            norm, base = 60000, (540 if spike else 180)
+        vol[d] = {"count": base, "norm": norm}
+        tone[d] = -3.0 - (1.5 if spike and i >= 85 else 0)
+        viol[d] = {"count": int(base * (0.5 if spike and i >= 85 else 0.3))}
+    return merge_daily(vol, tone if framing else {}, viol if framing else {}, {})
 
 
-def rows():
-    vol = gdelt.parse_timeline_volraw(load("volraw.json"))
-    tone = gdelt.parse_timeline_tone(load("tone.json"))
-    viol = gdelt.parse_timeline_volraw(load("viol.json"))
-    return merge_daily(vol, tone, viol, {})
-
-
-def test_volraw_daily_buckets():
-    vol = gdelt.parse_timeline_volraw(load("volraw.json"))
-    assert len(vol) == 92
-    first = next(iter(vol))
-    assert first == "2026-07-20"
-    assert vol[first]["norm"] > 90000
-
-
-def test_empty_payloads_are_safe():
-    assert gdelt.parse_timeline_volraw({}) == {}
-    assert gdelt.parse_timeline_tone(None) == {}
-    assert gdelt.parse_artlist(None)["articles"] == []
-    assert summarise([]) == {}
-
-
-def test_artlist_dedupes_titles_and_counts_outlets():
-    out = gdelt.parse_artlist(load("artlist.json"))
-    assert [a["title"] for a in out["articles"]] == ["Ceasefire talks resume", "Aid convoy reaches city"]
-    assert out["top_domains"][0] == ("b.example", 2)
-    assert out["articles"][0]["seen"].startswith("2026-10-18T10:15")
-
-
+# ---------------- metrics
 def test_partial_today_is_kept_when_volume_sufficient():
-    r = rows()
-    assert latest_index(r) == len(r) - 1  # 60% of a normal day -> keep
+    r = synthetic_rows()
+    assert latest_index(r) == len(r) - 1
 
 
 def test_spike_detected_with_share_not_raw_count():
-    m = summarise(rows())
-    # partial day: 540 / 60000 = 90 per 10k, baseline ~30 -> large positive z
-    assert m["share_latest"] == 90.0
-    assert m["z_attention"] > 5
-    assert m["latest_partial"] is True
-    assert m["violence_share_7d"] > m["violence_share_prev30d"]
-    assert m["tone_delta"] < -1
+    m = summarise(synthetic_rows())
+    assert m["share_latest"] == 90.0 and m["z_attention"] > 5 and m["latest_partial"] is True
+    assert m["violence_share_7d"] > m["violence_share_prev30d"] and m["tone_delta"] < -1
     texts = " ".join(f["text"] for f in flags(m))
-    assert "spike" in texts and "Tone darkening" in texts and "Violence framing" in texts
+    assert "spike" in texts and "Tone darkening" in texts and "Violent-event coverage up" in texts
 
 
-def test_robust_z_handles_flat_history():
+def test_missing_series_is_none_not_zero():
+    m = summarise(synthetic_rows(framing=False))
+    assert m["violence_share_7d"] is None and m["peace_share_7d"] is None and m["tone_7d"] is None
+
+
+def test_empty_is_safe():
+    assert summarise([]) == {}
+
+
+def test_robust_z_trend_percentile():
     assert robust_z(5, [5] * 20) is None
-    assert robust_z(10, [1, 2, 3]) is None  # too short
-    # median 4.5, MAD 2 -> scale 2.965; (10 - 4.5) / 2.965 = 1.85
-    assert robust_z(10, [1, 2, 3, 4, 5, 6, 7, 8]) == 1.85
-
-
-def test_trend_and_percentile():
+    assert robust_z(10, [1, 2, 3]) is None
+    assert robust_z(10, [1, 2, 3, 4, 5, 6, 7, 8]) == 1.85  # median 4.5, MAD 2 -> scale 2.965
     assert log_trend([100 * 1.1 ** (i / 7) for i in range(30)]) == 10.0
     assert percentile_rank(5, [1, 2, 3, 4]) == 100.0
 
 
+# ---------------- GDELT event files
+def test_parse_export_assigns_events_to_countries():
+    fips, cameo = events.build_index(CFG["countries"])
+    agg = events.load_daily(Path("/nonexistent"))
+    arts = {k: [] for k in ("SDN", "SAU", "PSE")}
+    from collections import defaultdict
+    arts = defaultdict(list)
+    events.parse_export((FX / "export_sample.csv").read_text(), "20261018101500", fips, cameo, agg, arts)
+    g = agg[("2026-10-18", events.ALL)]
+    assert g["events"] == 4 and g["articles"] == 20  # malformed line skipped
+    sdn = agg[("2026-10-18", "SDN")]
+    assert sdn["events"] == 2 and sdn["articles"] == 8
+    assert sdn["viol"] == 5 and sdn["peace"] == 3 and sdn["r19"] == 5 and sdn["r04"] == 3
+    assert abs(sdn["tone_w"] - (-6.5 * 5 + 1.0 * 3)) < 1e-9
+    assert agg[("2026-10-18", "SAU")]["articles"] == 3  # located in Saudi Arabia
+    assert agg[("2026-10-18", "PSE")]["viol"] == 2  # Gaza FIPS GZ -> Palestine
+    assert ("2026-10-18", "USA") not in agg
+    assert len(arts["SDN"]) == 2 and arts["SDN"][0][0] == 5
+
+
+def test_daily_roundtrip(tmp_path):
+    from collections import defaultdict
+    agg = defaultdict(lambda: defaultdict(float))
+    agg[("2026-10-18", "SDN")]["articles"] = 8
+    agg[("2026-10-18", "SDN")]["tone_w"] = -29.5
+    agg[("2026-06-01", "SDN")]["articles"] = 1
+    events.save_daily(tmp_path / "d.csv", agg, keep_from="2026-07-01")
+    back = events.load_daily(tmp_path / "d.csv")
+    assert back[("2026-10-18", "SDN")]["articles"] == 8 and back[("2026-10-18", "SDN")]["tone_w"] == -29.5
+    assert ("2026-06-01", "SDN") not in back  # pruned outside the window
+
+
+def test_slots_and_titles():
+    s = events.slots_between(datetime(2026, 10, 18, 23, 0, tzinfo=timezone.utc), datetime(2026, 10, 19, 0, 7, tzinfo=timezone.utc))
+    assert s == ["20261019000000", "20261018234500", "20261018233000", "20261018231500", "20261018230000"]
+    assert events.slot_day(s[0]) == "2026-10-19"
+    assert events.title_from_url("https://news.example.com/2026/10/18/sudan-rsf-shell-el-fasher-market-12345.html") == "Sudan rsf shell el fasher market"
+    assert events.title_from_url("https://x.example.org/article/123456") == ""
+    assert events.domain_of("https://www.bbc.co.uk/news/x") == "bbc.co.uk"
+
+
+def test_merge_articles_dedupes_and_prunes():
+    now = datetime(2026, 10, 19, 12, tzinfo=timezone.utc)
+    old = {"SDN": [{"url": "u1", "mentions": 3, "slot": "20261019000000", "root": "19"},
+                   {"url": "old", "mentions": 99, "slot": "20261010000000", "root": "19"}]}
+    new = {"SDN": [(7, "u1", "20261019110000", "19"), (5, "u2", "20261019110000", "04")]}
+    out = events.merge_articles(old, new, now)
+    assert [a["url"] for a in out["SDN"]] == ["u1", "u2"] and out["SDN"][0]["mentions"] == 7
+
+
+# ---------------- Google News
 def test_google_news_parse_strips_publisher_and_sorts():
     items = gnews.parse_rss((FX / "gnews.xml").read_text())
-    assert items[0]["title"] == "Envoy visits region"
-    assert items[0]["source"] == "BBC"
+    assert items[0]["title"] == "Envoy visits region" and items[0]["source"] == "BBC"
     assert items[1]["title"] == "Talks in Doha stall"
     assert gnews.parse_rss("not xml") == []
+    assert len(gnews.parse_rss((FX / "gnews.xml").read_text(), limit=1)) == 1
 
 
+# ---------------- config
 def test_config_is_valid():
-    cfg = json.loads((Path(__file__).parent.parent / "config" / "countries.json").read_text())
-    cs = cfg["countries"]
+    cs = CFG["countries"]
     assert len(cs) == len({c["iso3"] for c in cs})
     for c in cs:
-        assert {"iso3", "name", "region", "tier", "atlas", "gdelt", "news"} <= c.keys()
-        assert c["tier"] in {"operates", "dialogue"}
-        # GDELT rejects OR lists that are not wrapped in parentheses
-        if " OR " in c["gdelt"]:
-            assert c["gdelt"].startswith("(") and c["gdelt"].endswith(")")
-
-
-def test_url_builder():
-    u = gdelt.build_url('(Sudan OR "Rapid Support Forces")', "timelinevolraw")
-    assert "mode=timelinevolraw" in u and "format=json" in u and "Rapid+Support" in u
-
-
-def test_missing_framing_series_is_none_not_zero():
-    vol = gdelt.parse_timeline_volraw(load("volraw.json"))
-    m = summarise(merge_daily(vol, {}, {}, {}))
-    assert m["violence_share_7d"] is None and m["peace_share_7d"] is None
-    assert m["tone_7d"] is None
-    assert m["share_latest"] == 90.0
-
-
-def test_merge_keeps_old_metrics_when_gdelt_fails():
-    import build_data
-    old = {"iso3": "SDN", "metrics": {"z_attention": 1}, "series": [1], "headlines": [{"title": "old"}], "fetched_at": "x"}
-    rec = build_data.merge(old, {"iso3": "SDN", "name": "Sudan"}, {"headlines": [{"title": "new"}]})
-    assert rec["stale"] is True and rec["pending"] is False
-    assert rec["metrics"] == {"z_attention": 1} and rec["headlines"][0]["title"] == "new"
-    rec = build_data.merge(None, {"iso3": "SDN"}, {"headlines": None})
-    assert rec["pending"] is True and rec["stale"] is False
+        assert {"iso3", "name", "region", "tier", "atlas", "news", "fips", "cameo"} <= c.keys()
+        assert c["tier"] in {"operates", "dialogue"} and c["fips"]
+        assert all(len(f) == 2 for f in c["fips"]) and all(len(k) == 3 for k in c["cameo"])

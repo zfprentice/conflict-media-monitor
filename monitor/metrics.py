@@ -162,9 +162,9 @@ def flags(m: dict) -> list[dict]:
     if td is not None and td <= -1.0:
         out.append({"level": "mid", "text": f"Tone darkening: {td:+.2f} vs prior 30 days"})
     v7, v30 = m.get("violence_share_7d"), m.get("violence_share_prev30d")
-    if v7 is not None and v30 and v7 - v30 >= 8:
-        out.append({"level": "mid", "text": f"Violence framing up {v7 - v30:.0f} pts ({v30:.0f}% → {v7:.0f}%)"})
+    if v7 is not None and v30 and v7 - v30 >= 5:
+        out.append({"level": "mid", "text": f"Violent-event coverage up {v7 - v30:.0f} pts ({v30:.0f}% → {v7:.0f}%)"})
     p7, p30 = m.get("peace_share_7d"), m.get("peace_share_prev30d")
-    if p7 is not None and p30 is not None and p7 - p30 >= 6:
-        out.append({"level": "info", "text": f"Peace-process framing up {p7 - p30:.0f} pts ({p30:.0f}% → {p7:.0f}%)"})
+    if p7 is not None and p30 is not None and p7 - p30 >= 3:
+        out.append({"level": "info", "text": f"Peace-process coverage up {p7 - p30:.0f} pts ({p30:.0f}% → {p7:.0f}%)"})
     return out

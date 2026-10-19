@@ -42,13 +42,13 @@ def parse_rss(xml_text: str, limit: int = 15) -> list[dict]:
     return items[:limit]
 
 
-def fetch(query: str, retries: int = 3) -> list[dict] | None:
-    url = build_url(query)
+def fetch(query: str, retries: int = 3, window: str = "2d", limit: int = 15) -> list[dict] | None:
+    url = build_url(query, window)
     for attempt in range(retries):
         try:
             req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
             with urllib.request.urlopen(req, timeout=30) as r:
-                return parse_rss(r.read().decode("utf-8", errors="replace"))
+                return parse_rss(r.read().decode("utf-8", errors="replace"), limit)
         except Exception as exc:
             print(f"  ! Google News failed ({exc}); retry {attempt + 1}/{retries}")
             time.sleep(5 * (attempt + 1))

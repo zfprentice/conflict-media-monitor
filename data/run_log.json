@@ -1,0 +1,174 @@
+{
+ "run": {
+  "gdelt_calls": 32,
+  "gdelt_failures": 14,
+  "gdelt_down": true,
+  "gdelt_median_s": 15.2,
+  "seconds": 630,
+  "fresh_countries": 2,
+  "pending_countries": 25,
+  "total_countries": 27
+ },
+ "calls": [
+  {
+   "mode": "timelinevolraw",
+   "s": 14.7,
+   "outcome": "error: HTTPError: HTTP Error 429: Too Many Requests"
+  },
+  {
+   "mode": "timelinevolraw",
+   "s": 14.8,
+   "outcome": "error: HTTPError: HTTP Error 429: Too Many Requests"
+  },
+  {
+   "mode": "timelinevolraw",
+   "s": 11.1,
+   "outcome": "error: HTTPError: HTTP Error 429: Too Many Requests"
+  },
+  {
+   "mode": "timelinevolraw",
+   "s": 14.5,
+   "outcome": "error: HTTPError: HTTP Error 429: Too Many Requests"
+  },
+  {
+   "mode": "timelinevolraw",
+   "s": 13.6,
+   "outcome": "error: HTTPError: HTTP Error 429: Too Many Requests"
+  },
+  {
+   "mode": "timelinevolraw",
+   "s": 10.2,
+   "outcome": "error: HTTPError: HTTP Error 429: Too Many Requests"
+  },
+  {
+   "mode": "timelinevolraw",
+   "s": 10.5,
+   "outcome": "error: HTTPError: HTTP Error 429: Too Many Requests"
+  },
+  {
+   "mode": "timelinevolraw",
+   "s": 10.9,
+   "outcome": "error: HTTPError: HTTP Error 429: Too Many Requests"
+  },
+  {
+   "mode": "timelinevolraw",
+   "s": 11.4,
+   "outcome": "ok"
+  },
+  {
+   "mode": "timelinetone",
+   "s": 10.2,
+   "outcome": "error: HTTPError: HTTP Error 429: Too Many Requests"
+  },
+  {
+   "mode": "timelinetone",
+   "s": 13.3,
+   "outcome": "error: HTTPError: HTTP Error 429: Too Many Requests"
+  },
+  {
+   "mode": "timelinevolraw",
+   "s": 11.3,
+   "outcome": "error: HTTPError: HTTP Error 429: Too Many Requests"
+  },
+  {
+   "mode": "timelinevolraw",
+   "s": 10.6,
+   "outcome": "error: HTTPError: HTTP Error 429: Too Many Requests"
+  },
+  {
+   "mode": "timelinevolraw",
+   "s": 10.6,
+   "outcome": "error: HTTPError: HTTP Error 429: Too Many Requests"
+  },
+  {
+   "mode": "timelinevolraw",
+   "s": 15.2,
+   "outcome": "ok"
+  },
+  {
+   "mode": "artlist",
+   "s": 11.3,
+   "outcome": "error: HTTPError: HTTP Error 429: Too Many Requests"
+  },
+  {
+   "mode": "artlist",
+   "s": 10.5,
+   "outcome": "error: HTTPError: HTTP Error 429: Too Many Requests"
+  },
+  {
+   "mode": "timelinevolraw",
+   "s": 10.7,
+   "outcome": "error: HTTPError: HTTP Error 429: Too Many Requests"
+  },
+  {
+   "mode": "timelinevolraw",
+   "s": 11.3,
+   "outcome": "error: HTTPError: HTTP Error 429: Too Many Requests"
+  },
+  {
+   "mode": "timelinevolraw",
+   "s": 11.0,
+   "outcome": "error: HTTPError: HTTP Error 429: Too Many Requests"
+  },
+  {
+   "mode": "timelinevolraw",
+   "s": 11.3,
+   "outcome": "error: HTTPError: HTTP Error 429: Too Many Requests"
+  },
+  {
+   "mode": "timelinevolraw",
+   "s": 17.6,
+   "outcome": "ok"
+  },
+  {
+   "mode": "timelinetone",
+   "s": 10.5,
+   "outcome": "error: HTTPError: HTTP Error 429: Too Many Requests"
+  },
+  {
+   "mode": "timelinetone",
+   "s": 10.2,
+   "outcome": "error: HTTPError: HTTP Error 429: Too Many Requests"
+  },
+  {
+   "mode": "timelinevolraw",
+   "s": 11.7,
+   "outcome": "error: HTTPError: HTTP Error 429: Too Many Requests"
+  },
+  {
+   "mode": "timelinevolraw",
+   "s": 10.0,
+   "outcome": "error: HTTPError: HTTP Error 429: Too Many Requests"
+  },
+  {
+   "mode": "timelinevolraw",
+   "s": 13.7,
+   "outcome": "error: HTTPError: HTTP Error 429: Too Many Requests"
+  },
+  {
+   "mode": "timelinevolraw",
+   "s": 14.2,
+   "outcome": "error: HTTPError: HTTP Error 429: Too Many Requests"
+  },
+  {
+   "mode": "artlist",
+   "s": 13.2,
+   "outcome": "error: HTTPError: HTTP Error 429: Too Many Requests"
+  },
+  {
+   "mode": "artlist",
+   "s": 9.7,
+   "outcome": "error: HTTPError: HTTP Error 429: Too Many Requests"
+  },
+  {
+   "mode": "timelinevolraw",
+   "s": 14.1,
+   "outcome": "error: HTTPError: HTTP Error 429: Too Many Requests"
+  },
+  {
+   "mode": "timelinevolraw",
+   "s": 9.1,
+   "outcome": "error: HTTPError: HTTP Error 429: Too Many Requests"
+  }
+ ]
+}

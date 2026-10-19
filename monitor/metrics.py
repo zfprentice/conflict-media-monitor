@@ -109,7 +109,9 @@ def summarise(rows: list[dict]) -> dict:
     last30 = rows[max(0, i - 29): i + 1]
     latest = rows[i]
 
-    v7, p7 = _sum(last7, "n"), _sum(prev7, "n")
+    # Raw article counts compare complete days only; today's bucket is partial.
+    j = i - 1 if i == len(rows) - 1 and i > 0 else i
+    v7, p7 = _sum(rows[max(0, j - 6): j + 1], "n"), _sum(rows[max(0, j - 13): max(0, j - 6)], "n")
     share7 = _ratio(last7, "n", "norm")
     share_prev7 = _ratio(prev7, "n", "norm")
     tone7, tone30 = _weighted_tone(last7), _weighted_tone(prev30)

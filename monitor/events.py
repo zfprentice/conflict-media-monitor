@@ -120,7 +120,8 @@ def parse_export(text: str, slot: str, fips: dict, cameo: dict, agg: dict, artic
             continue
         g["events"] += 1
         g["articles"] += n
-        hits = set(fips.get(f[C_ACTION_COUNTRY], ()))
+        located = fips.get(f[C_ACTION_COUNTRY], set())
+        hits = set(located)
         hits |= cameo.get(f[C_ACTOR1_COUNTRY], set())
         hits |= cameo.get(f[C_ACTOR2_COUNTRY], set())
         if not hits:
@@ -137,7 +138,9 @@ def parse_export(text: str, slot: str, fips: dict, cameo: dict, agg: dict, artic
                 a["peace"] += n
             if root in ROOT_NAMES:
                 a["r" + root] += n
-            if articles is not None and f[C_URL].startswith("http"):
+            # Stories only from events located in the country: actor-only matches
+            # are fine in aggregate but often attach to off-topic articles.
+            if articles is not None and iso in located and f[C_URL].startswith("http"):
                 articles[iso].append((n, f[C_URL], slot, root))
 
 

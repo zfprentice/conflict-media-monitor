@@ -40,6 +40,11 @@ def test_spike_detected_with_share_not_raw_count():
     assert "spike" in texts and "Tone darkening" in texts and "Violent-event coverage up" in texts
 
 
+def test_week_on_week_uses_complete_days():
+    m = summarise(synthetic_rows(spike=False))
+    assert abs(m["change_7d_pct"]) < 3  # steady series: partial today must not drag the change down
+
+
 def test_missing_series_is_none_not_zero():
     m = summarise(synthetic_rows(framing=False))
     assert m["violence_share_7d"] is None and m["peace_share_7d"] is None and m["tone_7d"] is None
@@ -74,7 +79,8 @@ def test_parse_export_assigns_events_to_countries():
     assert agg[("2026-10-18", "SAU")]["articles"] == 3  # located in Saudi Arabia
     assert agg[("2026-10-18", "PSE")]["viol"] == 2  # Gaza FIPS GZ -> Palestine
     assert ("2026-10-18", "USA") not in agg
-    assert len(arts["SDN"]) == 2 and arts["SDN"][0][0] == 5
+    # stories only from events located in the country (event 2 is in Saudi Arabia)
+    assert [a[0] for a in arts["SDN"]] == [5] and [a[0] for a in arts["SAU"]] == [3]
 
 
 def test_daily_roundtrip(tmp_path):

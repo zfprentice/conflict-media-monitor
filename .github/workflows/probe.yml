@@ -1,0 +1,18 @@
+name: Probe GDELT file server
+on: workflow_dispatch
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: lastupdate.txt
+        run: curl -sSf --max-time 30 http://data.gdeltproject.org/gdeltv2/lastupdate.txt | tee last.txt
+      - name: download latest export zip
+        run: |
+          u=$(head -1 last.txt | awk '{print $3}'); echo $u
+          curl -sSf --max-time 60 -o e.zip "$u"; ls -la e.zip; unzip -p e.zip | wc -l
+      - name: download 40 files from a day ago in parallel
+        run: |
+          d=$(date -u -d '1 day ago' +%Y%m%d)
+          for h in 00 01 02 03 04 05 06 07 08 09; do for m in 00 15 30 45; do echo "http://data.gdeltproject.org/gdeltv2/${d}${h}${m}00.export.CSV.zip"; done; done > urls.txt
+          time (xargs -P 8 -n 1 curl -sSf --max-time 60 -O < urls.txt)
+          ls *.export.CSV.zip | wc -l; du -ch *.export.CSV.zip | tail -1

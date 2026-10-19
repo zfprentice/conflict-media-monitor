@@ -1,8 +1,8 @@
 {
- "slots_ingested": 1225,
- "slots_remaining": 14,
- "files_missing": 2,
- "complete_days": 91,
- "seconds": 283,
+ "slots_ingested": 36,
+ "slots_remaining": 0,
+ "files_missing": 0,
+ "complete_days": 92,
+ "seconds": 16,
  "total_countries": 27
 }

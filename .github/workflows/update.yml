@@ -1,0 +1,63 @@
+name: Update media data
+
+on:
+  schedule:
+    - cron: '17 */6 * * *'   # every 6 hours (offset from :00 to dodge the GitHub cron rush)
+  workflow_dispatch:          # "Run workflow" button in the Actions tab
+  push:
+    branches: [main]
+    paths-ignore: ['data/**']  # code changes redeploy the site without refetching
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: update-and-deploy
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Fetch GDELT and Google News data (~15 min, GDELT is rate limited)
+        if: github.event_name != 'push'
+        run: python build_data.py
+
+      - name: Commit updated data
+        if: github.event_name != 'push'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/
+          if git diff --cached --quiet; then
+            echo "No data changes"
+          else
+            git commit -m "data: update $(date -u +%Y-%m-%dT%H:%MZ)"
+            git pull --rebase origin main
+            git push origin HEAD:main
+          fi
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: .
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

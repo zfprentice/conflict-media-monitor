@@ -1,11 +1,11 @@
 {
- "slots_ingested": 7357,
- "slots_remaining": 1531,
+ "slots_ingested": 1542,
+ "slots_remaining": 9,
  "files_missing": 0,
  "slots_deferred": 0,
  "news_failed": 0,
  "news_total": 28,
- "complete_days": 74,
- "seconds": 1717,
+ "complete_days": 91,
+ "seconds": 281,
  "total_countries": 27
 }

@@ -44,7 +44,7 @@ function ramp(stops, t) { // stops: array of hex, t in [0,1]
 /* Map/table metrics */
 const METRICS = {
   z: {
-    label: "Anomaly", long: "Coverage today vs its own 28-day baseline (robust z-score)",
+    label: "Anomaly", long: "Coverage on the last full day vs its own 28-day baseline, adjusted for day of week (robust z-score)",
     get: (c) => c.metrics?.z_attention, fmt: (x) => sgn(x),
     color: (x) => x == null ? null : x < 0 ? ramp([css("--neutral"), css("--ink-3")], -x / 3) : ramp([css("--neutral"), css("--attn-1"), css("--attn-2"), css("--attn-3")], x / 4),
     legend: () => ({ grad: [css("--ink-3"), css("--neutral"), css("--attn-1"), css("--attn-2"), css("--attn-3")], lo: "−3 quiet", hi: "+4 spike" }),
@@ -73,21 +73,20 @@ const METRICS = {
     color: (x) => x == null ? null : ramp([css("--neutral"), css("--pos")], x / 40),
     legend: () => ({ grad: [css("--neutral"), css("--pos")], lo: "0%", hi: "40%+" }),
   },
+  mediation: {
+    label: "Mediation", long: "Share of coverage about mediation: calls for it, offers to mediate, accepting it or mediating (7 days)",
+    get: (c) => c.metrics?.mediation_share_7d, fmt: (x) => f1(x) + "%",
+    color: (x) => x == null ? null : ramp([css("--neutral"), css("--pos")], x / 8),
+    legend: () => ({ grad: [css("--neutral"), css("--pos")], lo: "0%", hi: "8%+" }),
+  },
 };
 
 /* ---------------- data helpers ---------------- */
 const visible = () => S.data.countries.filter((c) => (S.tier === "all" || c.tier === S.tier) &&
   (!S.q || c.name.toLowerCase().includes(S.q) || c.region.toLowerCase().includes(S.q)));
 const byIso = (iso) => S.data.countries.find((c) => c.iso3 === iso);
-function rollingMedianBand(vals, win = 28) {
-  return vals.map((_, i) => {
-    const h = vals.slice(Math.max(0, i - win), i).filter((v) => v != null);
-    if (h.length < 7) return null;
-    const s = [...h].sort((a, b) => a - b); const med = s[Math.floor(s.length / 2)];
-    const dev = h.map((v) => Math.abs(v - med)).sort((a, b) => a - b); const mad = 1.4826 * dev[Math.floor(dev.length / 2)];
-    return { med, lo: Math.max(0, med - 2 * mad), hi: med + 2 * mad, z: mad > 0 && vals[i] != null ? (vals[i] - med) / mad : null };
-  });
-}
+// Expected range per day, computed by the pipeline (weekday-adjusted 28-day median ± 2 robust SDs).
+const bandOf = (series) => series.map((p) => (p.b ? { lo: p.b[0], med: p.b[1], hi: p.b[2] } : null));
 function rollingRatio(series, num, den, win = 7) {
   return series.map((_, i) => {
     const w = series.slice(Math.max(0, i - win + 1), i + 1);
@@ -160,7 +159,10 @@ function renderStamp() {
   const d = S.data, r = d.run || {};
   const pending = d.countries.filter((c) => c.pending).length;
   const age = (Date.now() - new Date(d.generated_at)) / 36e5;
+  const scored = d.method?.scored_day;
   $("#stamp").innerHTML = `Updated <b>${stampFmt(d.generated_at)}</b> Brussels time (${ago(d.generated_at)}), from GDELT event data and Google News.` +
+    (scored ? ` Scores are for <b>${dayLabel(scored)}</b>, the last full day (UTC).` : "") +
+    (r.news_failed ? ` <span class="stale-note">Google News didn't answer ${r.news_failed} of ${r.news_total} queries; those headlines are from an earlier run.</span>` : "") +
     (r.complete_days != null && r.complete_days < 35 ? ` <span class="stale-note">History is still backfilling (${r.complete_days} of 92 days so far), so baselines and anomaly scores firm up over the next few updates.</span>` : "") +
     (pending ? ` <span class="stale-note">No coverage yet for ${pending} ${pending === 1 ? "country" : "countries"}.</span>` : "") +
     (age > 7 ? ` <span class="stale-note">The scheduled update looks overdue.</span>` : "");
@@ -175,9 +177,11 @@ function renderFooter() {
     <p>Every 15 minutes GDELT machine-codes world news (in English and translated from about 65 languages) into events: who did what to whom, where, and how many articles reported it.
     A country's <b>coverage</b> is the article count of events located in it or involving its government, groups or people. Because one article can report several events, the unit is article mentions, not unique articles.</p>
     <p><b>Share</b> divides that coverage by all coverage GDELT coded worldwide the same day, so it stays comparable when global news volume swings.
-    <b>Anomaly</b> is a robust z-score: today's share minus the median of the previous 28 days, divided by 1.4826 × the median absolute deviation. Above +2 is unusual; above +3 is a spike.</p>
+    <b>Anomaly</b> is a robust z-score for the last full day: its share minus the median of the previous 28 days, divided by 1.4826 × the median absolute deviation, after removing each country's usual weekday pattern (Gulf coverage rises at weekends, Moldova's falls). Above +2 is unusual; above +3 is a spike.
+    Today's partial figure is shown for context but never scored, because a part-day's share depends on which time zones have been awake.</p>
     <p><b>Tone</b> is GDELT's article-weighted average tone (roughly −10 to +10). <b>Violence</b> is the share of coverage about CAMEO event types 18–20 (assault, armed clashes, mass violence).
-    <b>Peace talk</b> is the share about CAMEO 036, 045, 046, 057 and 087 (intent to negotiate, mediation, negotiation, signing agreements, de-escalation and ceasefires).</p>
+    <b>Peace talk</b> is the share about CAMEO 026–028, 036–039, 045, 046, 057 and 087 (appeals and intent to negotiate, settle or mediate, mediation, negotiation, signing agreements, de-escalation and ceasefires).
+    <b>Mediation</b> is the narrower share about CAMEO 028, 038, 039 and 045 (calls for mediation, accepting or offering it, and mediating).</p>
     <p>Story titles in the long-tail lists come from article URLs, since GDELT doesn't publish headlines; mainstream headlines come from Google News. GDELT's automatic coding misfires on some stories, so lean on changes within a country more than exact levels.</p>
   </div><div>
     <h3>Data</h3>
@@ -212,7 +216,7 @@ function renderShell() {
   </section>
 
   <section class="block">
-    <div class="block-head"><h2>Ninety days at a glance</h2><p>Daily share of world coverage. Shaded band is the rolling 28-day median ± 2 MAD; orange dots are days outside it.</p></div>
+    <div class="block-head"><h2>Ninety days at a glance</h2><p>Daily share of world coverage, full days only. Shaded band is the expected range (rolling 28-day median ± 2 MAD, adjusted for day of week); orange dots are days above it.</p></div>
     <div class="panel"><div class="small-multiples" id="multiples"></div></div>
   </section>
 
@@ -314,7 +318,7 @@ function renderMovers() {
   const list = visible().filter((c) => c.metrics?.z_attention != null).sort((a, b) => b.metrics.z_attention - a.metrics.z_attention).slice(0, 6);
   $("#movers").innerHTML = list.length ? list.map((c) => {
     const m = c.metrics, why = (c.flags || []).find((f) => !f.text.startsWith("Coverage"))?.text ||
-      `${f1(m.share_latest)} per 10k today, ${pct(m.change_7d_pct)} articles week on week`;
+      `${f1(m.share_latest)} per 10k on ${dayLabel(m.latest_day)}, ${pct(m.change_7d_pct)} articles week on week`;
     return `<li><button data-iso="${c.iso3}"><span class="name">${esc(c.name)}</span><span class="z num ${m.z_attention >= 2 ? "hot" : ""}">${sgn(m.z_attention)}</span><span class="why">${esc(why)}</span></button></li>`;
   }).join("") : `<li class="empty">No countries match the filter.</li>`;
   $("#movers").onclick = (e) => { const b = e.target.closest("button"); if (b) openCountry(b.dataset.iso); };
@@ -325,7 +329,7 @@ function renderWatch() {
   if (!w) { $("#watch").innerHTML = ""; return; }
   const items = (w.headlines || []).slice(0, 5);
   $("#watch").innerHTML = `<h2>${esc(w.label)} <small>in the news</small></h2>
-    <div class="big">${f0(w.count_7d)}${w.count_7d >= 100 ? "+" : ""}</div><div class="muted" style="font-size:13px">Google News results in the last 7 days</div>
+    <div class="big">${f0(w.count_7d)}${w.count_7d >= 100 ? "+" : ""}</div><div class="muted" style="font-size:13px">Google News results in the last 7 days</div>${staleNews(w.headlines_at)}
     ${items.length ? `<ul>${items.map((i) => `<li><a href="${esc(i.url)}" target="_blank" rel="noopener">${esc(i.title)}</a><div class="faint" style="font-size:12px">${esc(i.source)}, ${ago(i.published)}</div></li>`).join("")}</ul>`
       : `<p class="empty">No mentions in the last 7 days.</p>`}`;
 }
@@ -341,7 +345,7 @@ function renderKpis() {
   const k = (v, l, s) => `<div class="kpi"><div class="v num">${v}</div><div class="l">${l}</div><div class="s">${s}</div></div>`;
   $("#kpis").innerHTML = [
     k(f0(sum), "Coverage in 7 days", `article mentions across ${cs.length} countries`),
-    k(spikes.length, "Countries spiking", spikes.length ? esc(spikes.map((c) => c.name).join(", ")) : "nothing above +2 today"),
+    k(spikes.length, "Countries spiking", spikes.length ? esc(spikes.map((c) => c.name).join(", ")) : "nothing above +2 on the last full day"),
     k(top ? esc(top.name) : "–", "Most covered", top ? `${f1(top.metrics.share_7d)} per 10k articles` : ""),
     k(riser ? esc(riser.name) : "–", "Fastest riser", riser ? `share ${pct(riser.metrics.share_change_7d_pct)} week on week` : ""),
     k(grim ? esc(grim.name) : "–", "Grimmest tone", grim ? `average tone ${sgn(grim.metrics.tone_7d, 2)}` : ""),
@@ -352,7 +356,7 @@ function renderKpis() {
 /* ---------------- render: ledger ---------------- */
 const COLS = [
   { key: "name", label: "Country", get: (c) => c.name, cell: (c) => `<span class="tier ${c.tier}" title="${tierLabel(c.tier)}"></span>${esc(c.name)}${(c.flags || []).some((f) => f.level !== "info" && f.level !== "low") ? `<span class="flagdot" title="${esc(c.flags.map((f) => f.text).join("; "))}"></span>` : ""}<span class="reg">${esc(c.region)}${c.pending ? ", metrics loading" : ""}</span>`, cls: "c" },
-  { key: "share", label: "Today<br>per 10k", get: (c) => c.metrics?.share_latest, cell: (c) => f1(c.metrics?.share_latest) },
+  { key: "share", label: "Last full day<br>per 10k", get: (c) => c.metrics?.share_latest, cell: (c) => f1(c.metrics?.share_latest) },
   { key: "z", label: "Anomaly<br>robust z", get: (c) => c.metrics?.z_attention, cell: (c) => `<span class="zbar"><span class="num ${c.metrics?.z_attention >= 2 ? "hot" : ""}">${sgn(c.metrics?.z_attention)}</span>${zBar(c.metrics?.z_attention)}</span>` },
   { key: "pctile", label: "90-day<br>percentile", get: (c) => c.metrics?.attention_pctile_90d, cell: (c) => f0(c.metrics?.attention_pctile_90d) },
   { key: "a7", label: "Coverage<br>7 days", get: (c) => c.metrics?.articles_7d, cell: (c) => f0(c.metrics?.articles_7d) },
@@ -386,7 +390,7 @@ function renderMultiples() {
   const order = [...new Set(S.data.countries.map((c) => c.region))];
   const cs = visible().slice().sort((a, b) => order.indexOf(a.region) - order.indexOf(b.region) || (b.metrics?.share_7d || 0) - (a.metrics?.share_7d || 0));
   $("#multiples").innerHTML = cs.map((c) => {
-    const vals = (c.series || []).map((p) => p.s), band = rollingMedianBand(vals);
+    const vals = (c.series || []).map((p) => p.s), band = bandOf(c.series || []);
     const W = 220, H = 64, n = vals.length; const ok = vals.concat(band.flatMap((b) => (b ? [b.hi] : []))).filter((v) => v != null);
     if (n < 2 || !ok.length) return "";
     const max = Math.max(...ok) * 1.05, X = (i) => (i / (n - 1)) * W, Y = (v) => H - 2 - (v / max) * (H - 6);
@@ -466,43 +470,46 @@ function renderWire() {
 }
 
 /* ---------------- drawer ---------------- */
+// Headlines kept from an earlier run because Google News failed this time.
+const staleNews = (at) => (at && new Date(S.data.generated_at) - new Date(at) > 36e5
+  ? `<p class="stale-note">Google News didn't answer this run; these are from ${ago(at)}.</p>` : "");
 let lastFocus = null;
 function openCountry(iso) {
   const c = byIso(iso); if (!c) return;
   S.open = iso; lastFocus = document.activeElement;
   if (location.hash !== "#/" + iso) history.replaceState(null, "", "#/" + iso);
   const m = c.metrics || {}, ser = c.series || [], dates = ser.map((p) => p.d);
-  const shares = ser.map((p) => p.s), band = rollingMedianBand(shares);
+  const shares = ser.map((p) => p.s), band = bandOf(ser);
   const marks = shares.map((v, i) => (band[i] && v != null && v > band[i].hi ? i : -1)).filter((i) => i >= 0);
-  const tone = ser.map((p) => p.t), viol = rollingRatio(ser, "v", "n"), peace = rollingRatio(ser, "p", "n");
+  const tone = ser.map((p) => p.t), viol = rollingRatio(ser, "v", "n"), peace = rollingRatio(ser, "p", "n"), med = rollingRatio(ser, "m", "n");
   const kp = (v, l, s = "") => `<div class="kpi"><div class="v num">${v}</div><div class="l">${l}</div>${s ? `<div class="s">${s}</div>` : ""}</div>`;
   const gq = encodeURIComponent(c.gdelt || c.name), nq = encodeURIComponent(c.news || c.name);
   const d = $("#drawer");
   const cw = Math.max(320, Math.min(660, Math.min(innerWidth, 760) - 70));
   const ch = (h) => Math.round(h * (cw < 500 ? 1.15 : 1));
   d.innerHTML = `<div class="d-head"><div><h2 id="dTitle">${esc(c.name)}</h2>
-      <div class="sub">${esc(c.region)}, ${tierLabel(c.tier).toLowerCase()}. Latest day ${m.latest_day ? dayLabel(m.latest_day) : "–"}${m.latest_partial ? " (so far)" : ""}.${c.pending ? " <span class='stale-note'>Metrics still loading; headlines are live.</span>" : c.stale ? ` <span class='faint'>Metrics from ${c.fetched_at ? ago(c.fetched_at) : "an earlier run"}.</span>` : ""}</div></div>
+      <div class="sub">${esc(c.region)}, ${tierLabel(c.tier).toLowerCase()}. Scores for ${m.latest_day ? dayLabel(m.latest_day) : "–"}, the last full day.${m.today_share != null ? ` Today so far: ${f1(m.today_share)} per 10k over ${f1(m.today_hours)} h (not scored; part-days are skewed by time zone).` : ""}${c.pending ? " <span class='stale-note'>Metrics still loading; headlines are live.</span>" : ""}</div></div>
       <button class="close" id="dClose" aria-label="Close">×</button></div>
     <div class="d-body">
       ${(c.flags || []).length ? `<div class="flags">${c.flags.map((f) => `<div class="flag ${f.level}">${esc(f.text)}</div>`).join("")}</div>` : ""}
       <div class="d-kpis">
-        ${kp(f1(m.share_latest), "Today per 10k", `${f0(m.articles_latest)} articles`)}
+        ${kp(f1(m.share_latest), `${m.latest_day ? dayLabel(m.latest_day) : "Latest day"} per 10k`, `${f0(m.articles_latest)} articles`)}
         ${kp(`<span class="${m.z_attention >= 2 ? "hot" : ""}">${sgn(m.z_attention)}</span>`, "Anomaly (robust z)", `${f0(m.attention_pctile_90d)}th percentile of 90 days`)}
         ${kp(f0(m.articles_7d), "Coverage, 7 days", `${pct(m.change_7d_pct)} week on week`)}
         ${kp(pct(m.trend_30d_pct_per_week), "30-day trend", "share, per week")}
         ${kp(sgn(m.tone_7d, 2), "Tone, 7 days", `${sgn(m.tone_delta, 2)} vs prior 30 days`)}
         ${kp(m.violence_share_7d == null ? "–" : f0(m.violence_share_7d) + "%", "Violence share", `was ${f0(m.violence_share_prev30d)}%`)}
         ${kp(m.peace_share_7d == null ? "–" : f0(m.peace_share_7d) + "%", "Peace-talk share", `was ${f0(m.peace_share_prev30d)}%`)}
-        ${kp(f1(m.volatility_30d), "Volatility", "30-day coefficient of variation")}
+        ${kp(m.mediation_share_7d == null ? "–" : f1(m.mediation_share_7d) + "%", "Mediation share", `was ${f1(m.mediation_share_prev30d)}%`)}
       </div>
-      <div class="panel chart"><h3>Share of world coverage <small>per 10k articles, band = 28-day median ± 2 MAD</small></h3>${tsChart({ dates, lines: [{ vals: shares, color: "var(--attn-2)" }], band, marks, zero: true, width: cw, height: ch(180) })}</div>
+      <div class="panel chart"><h3>Share of world coverage <small>per 10k articles, full days; band = expected range, adjusted for day of week</small></h3>${tsChart({ dates, lines: [{ vals: shares, color: "var(--attn-2)" }], band, marks, zero: true, width: cw, height: ch(180) })}</div>
       <div class="panel chart"><h3>Tone <small>daily (thin) and 7-day average</small></h3>${tsChart({ dates, lines: [{ vals: tone, color: "var(--ink-3)", width: 1 }, { vals: rollingMean(tone), color: "var(--neg)", width: 2 }], height: ch(150), width: cw, yfmt: (v) => v.toFixed(1), refLine: m.tone_prev30d })}</div>
-      <div class="panel chart"><h3>Framing <small>7-day rolling share of coverage: <span style="color:var(--neg)">violence</span>, <span style="color:var(--pos)">peace talk</span></small></h3>${tsChart({ dates, lines: [{ vals: viol, color: "var(--neg)" }, { vals: peace, color: "var(--pos)" }], height: ch(150), width: cw, yfmt: (v) => f0(v) + "%", zero: true })}</div>
+      <div class="panel chart"><h3>Framing <small>7-day rolling share of coverage: <span style="color:var(--neg)">violence</span>, <span style="color:var(--pos)">peace talk</span>, <span style="color:var(--pos)">mediation (dashed)</span></small></h3>${tsChart({ dates, lines: [{ vals: viol, color: "var(--neg)" }, { vals: peace, color: "var(--pos)" }, { vals: med, color: "var(--pos)", dash: "4 3", width: 1.4 }], height: ch(150), width: cw, yfmt: (v) => f0(v) + "%", zero: true })}</div>
       <div class="grid2">
         <div class="panel"><h3>Top outlets <small>most-covered stories, 3 days</small></h3>${bars(c.gdelt?.top_domains)}</div>
         <div class="panel"><h3>What is being reported <small>event types, 7 days</small></h3>${bars(c.gdelt?.event_mix)}</div>
       </div>
-      <div class="panel"><h3>Mainstream headlines <small>Google News, last 2 days</small></h3>
+      <div class="panel"><h3>Mainstream headlines <small>Google News, last 2 days</small></h3>${staleNews(c.headlines_at)}
         ${(c.headlines || []).length ? `<ul class="list">${c.headlines.map((h) => `<li><a href="${esc(h.url)}" target="_blank" rel="noopener">${esc(h.title)}</a><div class="meta">${esc(h.source)}, ${ago(h.published)}</div></li>`).join("")}</ul>` : `<p class="empty">No headlines in this run.</p>`}</div>
       <div class="panel"><h3>Most-covered stories <small>GDELT, last 3 days, all languages</small></h3>
         ${(c.gdelt?.articles || []).length ? `<ul class="list">${c.gdelt.articles.slice(0, 25).map((a) => `<li><a href="${esc(a.url)}" target="_blank" rel="noopener">${esc(a.title)}</a><div class="meta">${esc(a.domain)}${a.kind ? `, ${esc(a.kind.toLowerCase())}` : ""}, ${a.mentions} ${a.mentions === 1 ? "article" : "articles"}, ${ago(a.seen)}</div></li>`).join("")}</ul>` : `<p class="empty">No articles in this run.</p>`}</div>

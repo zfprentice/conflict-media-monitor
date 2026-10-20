@@ -37,7 +37,12 @@ C_ACTION_COUNTRY = 53
 C_URL = 60
 
 VIOLENCE_ROOTS = {"18", "19", "20"}  # assault, fight, unconventional mass violence
-PEACE_BASES = {"036", "045", "046", "057", "087"}  # intent to negotiate, mediate, negotiate, sign agreement, de-escalate/ceasefire
+# Peace process: appeals to negotiate/settle/mediate (026-028), intent to negotiate, settle,
+# accept mediation or mediate (036-039), mediate (045), negotiate (046), sign agreement (057),
+# de-escalate incl. ceasefire (087).
+PEACE_BASES = {"026", "027", "028", "036", "037", "038", "039", "045", "046", "057", "087"}
+# Mediation specifically: appeal for mediation, intent to accept or offer it, mediating.
+MEDIATION_BASES = {"028", "038", "039", "045"}
 ROOT_NAMES = {
     "01": "Public statements", "02": "Appeals", "03": "Intent to cooperate", "04": "Consultations",
     "05": "Diplomatic cooperation", "06": "Material cooperation", "07": "Aid", "08": "Concessions",
@@ -46,7 +51,7 @@ ROOT_NAMES = {
     "18": "Assaults", "19": "Armed clashes", "20": "Mass violence",
 }
 ROOTS = sorted(ROOT_NAMES)
-FIELDS = ["date", "key", "slots", "events", "articles", "tone_w", "viol", "peace"] + [f"r{r}" for r in ROOTS]
+FIELDS = ["date", "key", "slots", "events", "articles", "tone_w", "viol", "peace", "med"] + [f"r{r}" for r in ROOTS]
 ALL = "_ALL"
 
 
@@ -136,6 +141,8 @@ def parse_export(text: str, slot: str, fips: dict, cameo: dict, agg: dict, artic
                 a["viol"] += n
             if base in PEACE_BASES:
                 a["peace"] += n
+            if base in MEDIATION_BASES:
+                a["med"] += n
             if root in ROOT_NAMES:
                 a["r" + root] += n
             # Stories only from events located in the country: actor-only matches
@@ -200,6 +207,29 @@ def download_slots(slots: list[str], deadline: float, workers: int = 16):
 
 
 # ---------------------------------------------------------------- state files
+def state_is_current(path: Path) -> bool:
+    """False if daily.csv was written with different columns (e.g. before a code-set change).
+
+    Stored counts can't be recomputed without the raw files, so mixing old and
+    new definitions would fake a trend; the caller rebuilds history instead.
+    """
+    if not path.exists():
+        return True
+    with path.open() as f:
+        header = f.readline().strip().split(",")
+    return header == FIELDS
+
+
+def slot_settled(streams: list, slot: str, settle_cut: str) -> bool:
+    """Whether a slot can be counted and marked done.
+
+    A 404 on an old slot means GDELT skipped it; on a recent one the file may
+    simply not be posted yet, so leave it for the next run rather than record
+    a permanent gap.
+    """
+    return slot < settle_cut or all(text is not None for _, text in streams)
+
+
 def load_daily(path: Path) -> dict:
     agg = defaultdict(lambda: defaultdict(float))
     if path.exists():

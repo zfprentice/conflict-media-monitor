@@ -42,14 +42,18 @@ def parse_rss(xml_text: str, limit: int = 15) -> list[dict]:
     return items[:limit]
 
 
-def fetch(query: str, retries: int = 3, window: str = "2d", limit: int = 15) -> list[dict] | None:
+def fetch(query: str, retries: int = 3, window: str = "2d", limit: int = 15, deadline: float | None = None) -> list[dict] | None:
+    """Headlines for `query`, or None on failure or once `deadline` (epoch seconds) has passed."""
     url = build_url(query, window)
     for attempt in range(retries):
+        left = deadline - time.time() if deadline else 30
+        if left <= 1:
+            return None
         try:
             req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
-            with urllib.request.urlopen(req, timeout=30) as r:
+            with urllib.request.urlopen(req, timeout=min(30, left)) as r:
                 return parse_rss(r.read().decode("utf-8", errors="replace"), limit)
         except Exception as exc:
             print(f"  ! Google News failed ({exc}); retry {attempt + 1}/{retries}")
-            time.sleep(5 * (attempt + 1))
+            time.sleep(min(5 * (attempt + 1), max(0, (deadline - time.time()) if deadline else 15)))
     return None

@@ -32,6 +32,7 @@ jobs:
         if: github.event_name != 'push'
         env:
           BUDGET_MIN: '30'
+          NEWS_BUDGET_MIN: '6'      # 30 + 6 + setup stays inside the 50-minute job limit
           PYTHONUNBUFFERED: '1'
         run: python build_data.py
 

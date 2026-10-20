@@ -4,10 +4,10 @@ A self-updating dashboard of media attention, tone and framing across 27 conflic
 
 ## What it shows
 
-- **Map** of the 27 countries, switchable between anomaly, share of coverage, tone, violence share and peace-talk share. Countries spiking above +2 get a ring.
+- **Map** of the 27 countries, switchable between anomaly, share of coverage, tone, violence share, peace-talk share and mediation share. Countries spiking above +2 get a ring.
 - **Moving now**: the biggest coverage anomalies with the reason in plain words.
 - **Watch term**: Google News mentions of the European Institute of Peace.
-- **Country ledger**: sortable table with today's share, anomaly z-score, 90-day percentile, 7-day volume and change, 30-day trend, tone, violence and peace-talk shares and a 90-day sparkline.
+- **Country ledger**: sortable table with the last full day's share, anomaly z-score, 90-day percentile, 7-day volume and change, 30-day trend, tone, violence and peace-talk shares and a 90-day sparkline.
 - **Ninety days at a glance**: small multiples with a rolling baseline band and anomaly dots.
 - **Framing**: violence-versus-peace scatter and a tone ranking with the shift from the prior 30 days.
 - **Wire**: every Google News headline and GDELT article from the latest run, filterable.
@@ -21,13 +21,15 @@ Every 15 minutes GDELT machine-codes world news (English plus ~65 translated lan
 |---|---|
 | Coverage | Sum of NumArticles over the country's events. One article can report several events, so the unit is article mentions. |
 | Share | Coverage per 10,000 of all coverage GDELT coded worldwide that day. Comparable across days. |
-| Anomaly | Robust z-score of today's share vs the previous 28 days: (x − median) / (1.4826 × MAD). |
-| 90-day percentile | Where today's share sits in the country's own 90-day history. |
+| Anomaly | Robust z-score of the last complete day's share vs the previous 28 days, (x − median) / (1.4826 × MAD), after dividing out the country's typical weekday pattern (median share per weekday over the window). |
+| 90-day percentile | Where the last complete day's weekday-adjusted share sits in the country's own 90-day history. |
+| Today so far | The current UTC day's share, shown but never scored: a part-day's share depends on which time zones have been awake. |
 | 30-day trend | OLS slope of log(share) over 30 days, as % change per week. |
 | Volatility | Coefficient of variation of daily share over 30 days. |
 | Tone | Article-weighted GDELT AvgTone over 7 days, and its change vs the prior 30 days. |
 | Violence share | Share of coverage on CAMEO roots 18–20 (assault, fight, mass violence). |
-| Peace-talk share | Share of coverage on CAMEO 036, 045, 046, 057, 087 (intent to negotiate, mediate, negotiate, sign agreement, de-escalate/ceasefire). |
+| Peace-talk share | Share of coverage on CAMEO 026–028, 036–039, 045, 046, 057, 087 (appeals and intent to negotiate, settle or mediate; mediate; negotiate; sign agreement; de-escalate/ceasefire). |
+| Mediation share | Share of coverage on CAMEO 028, 038, 039, 045 (call for mediation, accept or offer it, mediate). |
 | Event mix | Coverage by CAMEO root category over 7 days. |
 
 Story titles in the GDELT lists are reconstructed from article URLs, because GDELT does not publish headlines. Mainstream headlines come from Google News RSS.
@@ -48,6 +50,8 @@ GitHub Actions (every 3 h, or "Run workflow")
 ```
 
 The first run backfills as much of the 92-day window as the budget allows, newest first; later runs finish the backlog and then only fetch the ~24 new files since the previous run. While history is short the page says so, because baselines need a few weeks to settle.
+
+Only complete UTC days (90+ of 96 files) are scored. A file that is still missing three hours after its slot is treated as skipped by GDELT; younger gaps are retried next run. If `daily.csv` was written with a different column set (as after a change to the event-code definitions), the run discards it and rebuilds history, which takes one or two runs. Google News gets its own time budget (`NEWS_BUDGET_MIN`, default 6); when a query fails, the previous run's headlines are kept and the page says how old they are.
 
 ## Editing the country list
 

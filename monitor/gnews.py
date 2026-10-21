@@ -10,11 +10,13 @@ from email.utils import parsedate_to_datetime
 USER_AGENT = "Mozilla/5.0 (compatible; conflict-media-monitor/1.0)"
 
 
-def build_url(query: str, window: str = "2d") -> str:
-    q = f"{query} when:{window}"
-    return "https://news.google.com/rss/search?" + urllib.parse.urlencode(
-        {"q": q, "hl": "en-GB", "gl": "GB", "ceid": "GB:en"}
-    )
+def build_url(query: str, window: str = "2d", edition: str = "GB:en", after: str | None = None, before: str | None = None) -> str:
+    """Google News RSS search. `edition` is 'COUNTRY:lang' (e.g. 'FR:fr'); `after`/`before`
+    (YYYY-MM-DD) ask for a date range instead of the trailing `window`."""
+    q = f"{query} after:{after} before:{before}" if after and before else f"{query} when:{window}"
+    gl, lang = edition.split(":")
+    hl = f"{lang}-{gl}" if lang == "en" else lang
+    return "https://news.google.com/rss/search?" + urllib.parse.urlencode({"q": q, "hl": hl, "gl": gl, "ceid": edition})
 
 
 def parse_rss(xml_text: str, limit: int = 15) -> list[dict]:
@@ -42,9 +44,10 @@ def parse_rss(xml_text: str, limit: int = 15) -> list[dict]:
     return items[:limit]
 
 
-def fetch(query: str, retries: int = 3, window: str = "2d", limit: int = 15, deadline: float | None = None) -> list[dict] | None:
+def fetch(query: str, retries: int = 3, window: str = "2d", limit: int = 100, deadline: float | None = None,
+          edition: str = "GB:en", after: str | None = None, before: str | None = None) -> list[dict] | None:
     """Headlines for `query`, or None on failure or once `deadline` (epoch seconds) has passed."""
-    url = build_url(query, window)
+    url = build_url(query, window, edition, after, before)
     for attempt in range(retries):
         left = deadline - time.time() if deadline else 30
         if left <= 1:

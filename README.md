@@ -1,72 +1,88 @@
 # Conflict Media Monitor
 
-A self-updating dashboard of media attention, tone and framing across 27 conflict-affected and dialogue countries. GitHub Actions pulls fresh data every three hours; GitHub Pages serves the site. No servers, no API keys, no build step.
+A self-updating site that shows what the media is reporting across 27 conflict-affected and dialogue countries: the main stories, whether a country is getting unusual attention, a weekly report, and every media mention of the European Institute of Peace. GitHub Actions refreshes it every three hours; GitHub Pages serves it. No servers, no API keys.
+
+Written for readers who don't work with statistics: every page leads with real headlines and plain sentences, and the numbers sit in their own tab.
 
 ## What it shows
 
-- **Map** of the 27 countries, switchable between anomaly, share of coverage, tone, violence share, peace-talk share and mediation share. Countries spiking above +2 get a ring.
-- **Moving now**: the biggest coverage anomalies with the reason in plain words.
-- **Watch term**: Google News mentions of the European Institute of Peace.
-- **Country ledger**: sortable table with the last full day's share, anomaly z-score, 90-day percentile, 7-day volume and change, 30-day trend, tone, violence and peace-talk shares and a 90-day sparkline.
-- **Ninety days at a glance**: small multiples with a rolling baseline band and anomaly dots.
-- **Framing**: violence-versus-peace scatter and a tone ranking with the shift from the prior 30 days.
-- **Wire**: every Google News headline and GDELT article from the latest run, filterable.
-- **Country panel** (click anything): KPIs, share/tone/framing charts, top outlets, event mix, most-covered stories, all headlines, and links to Google News, GDELT, ReliefWeb, CrisisWatch and ACLED. Each country has a shareable URL (`#/SDN`).
+- **Overview.** "Needs a look": countries getting more attention than usual, or where coverage has turned more violent or more negative, each with a plain-language summary, its main stories (headlines about the same event grouped, ranked by how many outlets carried them), what coverage is about, and names in the headlines. Then the map, EIP's latest mentions, and a card for every country with its main story of the week.
+- **Weekly report.** One page per calendar week, back to the start of the history: which countries had days of unusual attention, the most widely reported stories, EIP mentions that week, and for each country a summary, its main stories and how topics shifted from the week before. Every week is kept. "Copy text" per country, "Copy whole report", and "Print or save as PDF".
+- **EIP in the news.** Every article Google News finds mentioning the Institute, in English, French, German, Spanish and Arabic, kept permanently: counts for 7 and 30 days, the quarter and the year, mentions per month, a searchable table and an **Excel workbook** (clickable links, "Relevant?" and notes columns, month-by-language counts).
+- **Charts & data.** The analyst view: sortable country ledger with z-scores, 90-day small multiples with the usual range, violence versus diplomatic activity, tone ranking, the full wire of headlines, and the method.
+- **Country panel** (click anything): summary, main stories with other reports of each, topic mix, attention/tone/framing charts, latest headlines, other outlets, and links to Google News, ReliefWeb, CrisisWatch, ACLED and GDELT. Each country has a shareable URL (`#/SDN`); tabs too (`#weekly`, `#eip`).
+- **Excel:** `data/history.xlsx` has every country, every day since the monitor started, plus one row per country per week with its summary and main story.
 
-## Data and metrics
+## Stories and topics
 
-Every 15 minutes GDELT machine-codes world news (English plus ~65 translated languages) into events: who did what to whom, where, and how many articles reported it. The pipeline downloads those raw event files directly (the GDELT query API rate-limits GitHub's servers; the files don't) and counts an event toward a country if it happens there (ActionGeo FIPS code) or involves its actors (CAMEO country code). Matching on codes rather than keywords means "Georgia" no longer picks up Atlanta.
+Each run searches Google News (UK English edition) for each country over the past two and seven days. A headline is kept only if it names the country, its capital, people or main actors (the `gdelt`, `news` and `match` terms in the config, after removing `strip` phrases such as "South Sudan" for Sudan), and isn't sport, weather, markets, an earthquake bulletin or a press release. Headlines that share enough distinctive words (rare words count more than "kill" or "war") are grouped into one story; stories are ranked by the number of outlets. Each headline is keyword-tagged with zero or more topics: violence and security, humanitarian needs, talks and diplomacy, politics and governance, rights and justice, economy. "Names in the headlines" are capitalised names repeated across sentence-case headlines.
+
+Nothing is generated: every story shown is a real headline with its link, and every sentence is a template filled from the numbers.
+
+Finished weeks are searched again with a date range (`after:`/`before:`) so the weekly report covers the whole week, then frozen. The previous 13 weeks are filled in gradually, newest first.
+
+## Attention metrics
+
+GDELT machine-codes world news (English plus ~65 translated languages) every 15 minutes into events. The pipeline downloads those raw event files and counts an event toward a country if it happens there (ActionGeo FIPS code) or involves its actors (CAMEO country code).
 
 | Metric | Definition |
 |---|---|
-| Coverage | Sum of NumArticles over the country's events. One article can report several events, so the unit is article mentions. |
-| Share | Coverage per 10,000 of all coverage GDELT coded worldwide that day. Comparable across days. |
-| Anomaly | Robust z-score of the last complete day's share vs the previous 28 days, (x − median) / (1.4826 × MAD), after dividing out the country's typical weekday pattern (median share per weekday over the window). |
-| 90-day percentile | Where the last complete day's weekday-adjusted share sits in the country's own 90-day history. |
-| Today so far | The current UTC day's share, shown but never scored: a part-day's share depends on which time zones have been awake. |
-| 30-day trend | OLS slope of log(share) over 30 days, as % change per week. |
-| Volatility | Coefficient of variation of daily share over 30 days. |
+| Coverage | Sum of NumArticles over the country's events (article mentions). |
+| Share | Coverage per 10,000 of all coverage GDELT coded worldwide that day. |
+| Anomaly | Robust z-score of the last complete day's share vs the previous 28 days, (x − median) / (1.4826 × MAD), after dividing out the country's weekday pattern. Plain-language levels: below −2 "unusually little", −2 to −1 "a little less", −1 to +1 "usual", +1 to +2 "a little more", +2 to +3 "more", above +3 "much more attention than usual". |
+| Usual range | Weekday-adjusted rolling 28-day median ± 2 robust SDs. Days above it are "unusually high" in the weekly report. |
+| 90-day percentile, 30-day trend, volatility | As before: percentile of the adjusted share, OLS slope of log share (% per week), coefficient of variation. |
 | Tone | Article-weighted GDELT AvgTone over 7 days, and its change vs the prior 30 days. |
-| Violence share | Share of coverage on CAMEO roots 18–20 (assault, fight, mass violence). |
-| Peace-talk share | Share of coverage on CAMEO 026–028, 036–039, 045, 046, 057, 087 (appeals and intent to negotiate, settle or mediate; mediate; negotiate; sign agreement; de-escalate/ceasefire). |
-| Mediation share | Share of coverage on CAMEO 028, 038, 039, 045 (call for mediation, accept or offer it, mediate). |
-| Event mix | Coverage by CAMEO root category over 7 days. |
+| Violence | Share of coverage on CAMEO roots 18–20 (assault, fight, mass violence). |
+| Diplomatic activity | Share of coverage on CAMEO 026–028, 036–039, 045, 046, 057, 087 (appeals and intent to negotiate or mediate, mediation, negotiation, agreements, de-escalation). Dominated by routine meetings and visits, so it is shown as context only and never flagged. It was previously labelled "peace talk", with a narrower "mediation" share; both overstated what the codes measure and were dropped. |
 
-Story titles in the GDELT lists are reconstructed from article URLs, because GDELT does not publish headlines. Mainstream headlines come from Google News RSS.
+Only complete UTC days (90+ of 96 files) are judged; today's partial share is shown but not scored.
 
 ## How it works
 
 ```
 GitHub Actions (every 3 h, or "Run workflow")
   -> build_data.py
-       monitor/events.py   download + parse GDELT 2.0 event files (16 parallel downloads, 30-min budget)
-       monitor/gnews.py    Google News RSS headlines
-       monitor/metrics.py  pure metric functions (unit-tested)
-  -> data/daily.csv          per country per day aggregates, incl. event-type counts (92-day window)
-  -> data/slots_done.txt     which 15-minute files are already counted
-  -> data/recent_articles.json  most-covered stories, last 72 h
-  -> data/latest.json        everything the page renders
+       monitor/events.py     download + parse GDELT 2.0 event files (30-min budget)
+       monitor/gnews.py      Google News RSS (editions, date ranges)
+       monitor/stories.py    relevance and noise filters, story grouping, topics, names
+       monitor/metrics.py    pure metric functions
+       monitor/narrative.py  plain-language sentences
+       monitor/archive.py    EIP mentions and weekly story snapshots
+       monitor/excel.py      Excel workbooks
+  records, committed to the repo:
+       data/daily.csv            per country per day, kept indefinitely
+       data/slots_done.txt       which 15-minute GDELT files are counted (last 92 days)
+       data/recent_articles.json GDELT's most-covered stories, last 72 h
+       data/news.json            latest headlines and stories per country
+       data/weekly/YYYY-Www.json each week's stories, topics and names
+       data/eip_mentions.csv     every EIP mention, kept indefinitely
+       data/backfill_done.txt    which past months of EIP mentions have been searched
+  outputs, rebuilt every run and deployed (not committed):
+       data/latest.json, data/weekly.json, data/eip_mentions.json, data/*.xlsx
   -> deploy to GitHub Pages
 ```
 
-The first run backfills as much of the 92-day window as the budget allows, newest first; later runs finish the backlog and then only fetch the ~24 new files since the previous run. While history is short the page says so, because baselines need a few weeks to settle.
+A code change pushed to `main` rebuilds the outputs from the records without fetching anything (`OFFLINE=1`). Runs on other branches (via "Run workflow") are dry runs: they fetch and build but neither commit nor deploy.
 
-Only complete UTC days (90+ of 96 files) are scored. A file that is still missing three hours after its slot is treated as skipped by GDELT; younger gaps are retried next run. If `daily.csv` was written with a different column set (as after a change to the event-code definitions), the run discards it and rebuilds history, which takes one or two runs. Google News gets its own time budget (`NEWS_BUDGET_MIN`, default 6); when a query fails, the previous run's headlines are kept and the page says how old they are.
+Google News gets its own time budget (`NEWS_BUDGET_MIN`, default 6) and stops early if Google refuses six requests in a row; a country whose searches fail keeps its previous stories, and the page says how old they are. Past weeks and past months of EIP mentions use at most 60 requests per run.
 
-## Editing the country list
+## Editing the country list and watch terms
 
-Everything lives in `config/countries.json`: name, region, group (`operates` = field presence, `dialogue` = regional dialogue), FIPS and CAMEO codes for event matching, the Google News query and the map name. Push the change and the next run picks it up; to refresh immediately, open **Actions → Update media data → Run workflow**.
+Everything lives in `config/countries.json`. Per country: name, region, group (`operates` = field presence, `dialogue` = regional dialogue), FIPS and CAMEO codes for event matching, the Google News query (`news`), extra words that count as naming the country (`match`), phrases removed before that check (`strip`) and phrases that drop a headline (`exclude`). `watch_terms` lists the names to archive, each with one query per Google News edition and the date to search back to (`backfill_from`). Push the change and the next run picks it up; to refresh immediately, open **Actions → Update media data → Run workflow** on `main`.
 
 ## Local run
 
 ```bash
-BUDGET_MIN=5 python build_data.py   # short run; repeat to continue the backfill
+pip install -r requirements-dev.txt
+OFFLINE=1 python build_data.py     # rebuild the page from the committed records (no network)
+BUDGET_MIN=5 python build_data.py  # or a short live run
 python -m http.server              # then open http://localhost:8000
-pip install -r requirements-dev.txt && pytest -q
+pytest -q
 ```
 
 ## Caveats
 
-GDELT's automated event coding misfires on some stories and over-weights online and wire-syndicated outlets. Compare a country against its own history rather than ranking levels across countries too literally. Coverage of a country includes events elsewhere involving its actors (an Iranian minister in Geneva counts for Iran).
+Google News doesn't index every outlet, and many headlines in the EIP list won't name the Institute (it matches the article body), so check the article before citing it. Story grouping and topic tagging are keyword-based and will sometimes split one event into two stories or tag a headline oddly. GDELT's automated event coding misfires on some stories and over-weights online and wire-syndicated outlets; compare a country with its own history rather than ranking levels across countries. Coverage of a country includes events elsewhere involving its actors (an Iranian minister in Geneva counts for Iran).
 
 Map data: world-atlas (Natural Earth, public domain). Libraries vendored in `assets/vendor` (d3-array, d3-geo, topojson-client; ISC licence).

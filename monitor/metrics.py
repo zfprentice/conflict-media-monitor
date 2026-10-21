@@ -7,7 +7,7 @@ morning), so it is reported separately and never scored.
 from __future__ import annotations
 
 import math
-from datetime import date
+from datetime import date, timedelta
 from statistics import median
 
 
@@ -204,25 +204,53 @@ def summarise(rows: list[dict], today: dict | None = None) -> dict:
 
 
 def flags(m: dict) -> list[dict]:
-    """Plain-language alerts derived from the summary metrics."""
+    """Plain-language alerts derived from the summary metrics.
+
+    The diplomatic-activity share (CAMEO 'peace' codes) is not flagged: it
+    mostly tracks routine meetings and visits, so a rise rarely means a peace
+    process moved (Gulf states and Panama score highest).
+    """
     out = []
     z = m.get("z_attention")
     if z is not None and z >= 3:
-        out.append({"level": "high", "text": f"Coverage spike: {z:+.1f} robust z vs 28-day weekday-adjusted baseline"})
+        out.append({"level": "high", "text": "Much more media attention than usual"})
     elif z is not None and z >= 2:
-        out.append({"level": "mid", "text": f"Coverage rising: {z:+.1f} robust z vs 28-day weekday-adjusted baseline"})
+        out.append({"level": "mid", "text": "More media attention than usual"})
     elif z is not None and z <= -2:
-        out.append({"level": "low", "text": f"Unusually quiet: {z:+.1f} robust z"})
+        out.append({"level": "low", "text": "Unusually little media attention"})
     td = m.get("tone_delta")
     if td is not None and td <= -1.0:
-        out.append({"level": "mid", "text": f"Tone darkening: {td:+.2f} vs prior 30 days"})
+        out.append({"level": "mid", "text": "Coverage has turned more negative than over the previous month"})
     v7, v30 = m.get("violence_share_7d"), m.get("violence_share_prev30d")
     if v7 is not None and v30 and v7 - v30 >= 5:
-        out.append({"level": "mid", "text": f"Violent-event coverage up {v7 - v30:.0f} pts ({v30:.0f}% → {v7:.0f}%)"})
-    p7, p30 = m.get("peace_share_7d"), m.get("peace_share_prev30d")
-    if p7 is not None and p30 is not None and p7 - p30 >= 3:
-        out.append({"level": "info", "text": f"Peace-process coverage up {p7 - p30:.0f} pts ({p30:.0f}% → {p7:.0f}%)"})
-    m7, m30 = m.get("mediation_share_7d"), m.get("mediation_share_prev30d")
-    if m7 is not None and m30 is not None and m7 - m30 >= 2:
-        out.append({"level": "info", "text": f"Mediation coverage up {m7 - m30:.0f} pts ({m30:.0f}% → {m7:.0f}%)"})
+        out.append({"level": "mid", "text": f"Violence features more in coverage: {v7:.0f}% of it this week, up from {v30:.0f}%"})
     return out
+
+
+def week_stats(rows: list[dict], band: list, start: str, end: str) -> dict | None:
+    """Figures for one calendar week (complete days between `start` and `end`) and the week before."""
+    prev_start = (date.fromisoformat(start) - timedelta(days=7)).isoformat()
+    days = [(r, b) for r, b in zip(rows, band) if start <= r["d"] <= end and r["norm"]]
+    prev = [r for r in rows if prev_start <= r["d"] < start and r["norm"]]
+    if not days:
+        return None
+    week = [r for r, _ in days]
+    share = _ratio(week, "n", "norm")
+    share_prev = _ratio(prev, "n", "norm") if prev else None
+    viol, viol_prev = _ratio(week, "v", "n"), _ratio(prev, "v", "n") if prev else None
+    dipl = _ratio(week, "p", "n")
+    busiest = max(week, key=lambda r: r["s"] or 0)
+    return {
+        "days": len(week),
+        "articles": _sum(week, "n"),
+        "share": _r(share * 1e4 if share is not None else None, 2),
+        "share_prev": _r(share_prev * 1e4 if share_prev is not None else None, 2),
+        "change_pct": _r((share / share_prev - 1) * 100, 1) if share and share_prev else None,
+        "unusual_days": [r["d"] for r, b in days if b and r["s"] is not None and r["s"] > b[2]],
+        "quiet_days": [r["d"] for r, b in days if b and r["s"] is not None and r["s"] < b[0]],
+        "busiest_day": busiest["d"],
+        "violence": _r(viol * 100 if viol is not None else None, 1),
+        "violence_prev": _r(viol_prev * 100 if viol_prev is not None else None, 1),
+        "diplomacy": _r(dipl * 100 if dipl is not None else None, 1),
+        "tone": _r(_weighted_tone(week)),
+    }

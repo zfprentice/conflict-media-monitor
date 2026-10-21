@@ -65,7 +65,7 @@ class Matcher:
 NOISE = re.compile(
     r"\b(nba|nfl|nhl|mlb|cricket|t20|odi|test match|football|soccer|fifa|uefa|premier league|champions league|la liga|"
     r"world cup qualif\w*|match highlights|highlights|tennis|golf|formula 1|grand prix|motogp|basketball|rugby|volleyball|"
-    r"olympic\w*|goalkeeper|striker signs|transfer window|head coach|coach$|as coach|new coach|nrl|afl|semi-?final|quarter-?final|fixtures?|squad|"
+    r"olympic\w*|goalkeeper|striker signs|transfer window|grands? prix|fia|eurovision|united rugby championship|head coach|coach$|as coach|new coach|nrl|afl|semi-?final|quarter-?final|fixtures?|squad|"
     r"weather|forecast|drizzle|humid|horoscope|lottery|recipe\w*|"
     r"stock price|share price|price target|dividend|nasdaq|nyse|ipo|bitcoin|crypto\w*|appoints|close of trade|"
     r"stocks? (?:higher|lower|up|down|rise|fall)\w*|shares (?:higher|lower)|"
@@ -78,9 +78,13 @@ NOISE_SOURCES = {fold(s) for s in (
 )}
 
 
+SPORT_FIXTURE = re.compile(r"\b[A-Z][\w'’.-]* vs?\.? [A-Z]")  # 'Ospreys v Black Lion', 'Lesotho vs Mozambique'
+
+
 def is_noise(title: str, source: str = "") -> bool:
     src = fold(source).strip()
-    return src in NOISE_SOURCES or src.startswith(("investing.com", "marketscreener")) or bool(NOISE.search(fold(title)))
+    return (src in NOISE_SOURCES or src.startswith(("investing.com", "marketscreener"))
+            or bool(NOISE.search(fold(title))) or bool(SPORT_FIXTURE.search(title or "")))
 
 
 ENGLISH = re.compile(r"\b(the|of|in|to|for|on|and|after|as|with|at|by|from|is|are|was|over|amid|says|into|against)\b")
@@ -254,21 +258,26 @@ def cluster(items: list[dict], ignore: set[str] = frozenset(), threshold: float 
 
 # ---------------------------------------------------------------- names in the news
 _CAP = re.compile(r"[A-Z][\w'’\-]*(?:\s+(?:al-|bin\s+|de\s+|of\s+)?[A-Z][\w'’\-]*)*")
-NOT_NAMES = set("""The A An In On At For To Of And But Or After Before As With From By Over Under Amid Why How What
+TITLES = set("""President Prime Minister PM FM Mr Mrs Ms Dr King Queen Prince Princess Sultan Sheikh Emir Foreign
+Defence Defense Interior General Gen Chief Envoy Former Ex""".split())
+GENERIC = set("""The A An In On At For To Of And But Or After Before As With From By Over Under Amid Why How What
 When Who Where Will Is Are Was Were Be New Latest Live Breaking Watch Video Exclusive Analysis Opinion Report Update
 Monday Tuesday Wednesday Thursday Friday Saturday Sunday January February March April May June July August September
 October November December Jan Feb Mar Apr Jun Jul Aug Sept Sep Oct Nov Dec This That These Those Its It His Her Their
-Our Mr Mrs Ms Dr President Minister Prime PM FM Says Said More Most Top Day Week Year Sultan King Queen Prince
-Government Army Police Parliament Council Ministry State Court Forces Military National Central Bank City Region
-Officials Officials People Here There Inside Year-Old""".split())
+Our Says Said More Most Top Day Week Year Government Army Police Parliament Council Ministry State Court Forces
+Military National Central City Region Officials People Here There Inside World Media West East North South
+Middle Europe European Africa African Asia Gulf Western International UN US EU""".split()) | TITLES
 
 
 def names(items: list[dict], ignore: set[str] = frozenset(), limit: int = 6) -> list[list]:
     """People, places and groups named most often, from headlines written in sentence case.
 
     Title-case headlines ('Army Drone Strike Kills 153') capitalise every word,
-    so they are skipped rather than letting 'Strike' look like a name.
+    so they are skipped rather than letting 'Strike' look like a name. Leading
+    titles are dropped ('President Ruto' -> 'Ruto'), names made only of generic
+    words ('Government', 'West') are skipped, and so are outlet names.
     """
+    outlets = {fold(it.get("source", "")) for it in items}
     c = Counter()
     for it in items:
         words = it["title"].split()
@@ -276,16 +285,16 @@ def names(items: list[dict], ignore: set[str] = frozenset(), limit: int = 6) -> 
             continue
         found = set()
         for m in _CAP.finditer(it["title"]):
-            if m.start() == 0:
-                # the first word is capitalised anyway; keep it only as part of a longer name
-                parts = m.group().split()
-                if len(parts) < 2:
-                    continue
-            name = re.sub(r"['’]s$", "", m.group().strip(" '’-"))
-            parts = [p for p in name.split() if p not in NOT_NAMES]
+            parts = re.sub(r"['’]s$", "", m.group().strip(" '’-")).split()
+            if m.start() == 0 and len(parts) < 2:
+                continue  # the first word is capitalised anyway
+            while parts and parts[0] in TITLES:
+                parts = parts[1:]
+            if not parts or all(p in GENERIC for p in parts):
+                continue
             name = " ".join(parts)
-            words = {_stem(w) for w in re.findall(r"[a-z0-9]+", fold(name))}
-            if len(name) < 3 or not parts or words & ignore:
+            words_ = {_stem(w) for w in re.findall(r"[a-z0-9]+", fold(name))}
+            if len(name) < 3 or words_ & ignore or fold(name) in outlets:
                 continue
             found.add(name)
         c.update(found)

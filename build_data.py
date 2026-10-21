@@ -366,6 +366,10 @@ def main(data: Path = DATA, cfg_path: Path = CONFIG) -> int:
     # ---- 2. headlines, stories, watch-term mentions
     news = json.loads(p["news"].read_text()) if p["news"].exists() else {}
     mentions = {t["key"]: archive.load_mentions(data / f"{t['key']}_mentions.csv") for t in cfg.get("watch_terms", [])}
+    matchers = [(c["name"], st.Matcher(c)) for c in cfg["countries"]]
+    for rows in mentions.values():  # re-tag every run, so older rows benefit when the country terms improve
+        for r in rows:
+            r["countries"] = "; ".join(n for n, m in matchers if m.mentions(r["title"]))
     if offline:
         run.update({k: prev_run.get(k) for k in ("news_failed", "news_total", "mentions_new", "weeks_filled", "weeks_empty", "months_filled")})
     else:

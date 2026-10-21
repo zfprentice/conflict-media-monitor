@@ -119,3 +119,20 @@ def test_google_news_urls():
     u = gnews.build_url('"Institut européen pour la paix"', edition="FR:fr", after="2026-09-01", before="2026-10-01")
     assert "hl=fr&gl=FR&ceid=FR%3Afr" in u and "after%3A2026-09-01+before%3A2026-10-01" in u
     assert "when%3A2d" in gnews.build_url("Sudan") and "hl=en-GB" in gnews.build_url("Sudan")
+
+
+def test_fixtures_and_names_cleanup():
+    assert st.is_noise("Ospreys v Black Lion: URC preview") and st.is_noise("Lesotho vs Mozambique highlights")
+    assert st.is_noise("FIA boss on the 2026 Qatar and Abu Dhabi Grands Prix") and st.is_noise("Serbia confirms Eurovision 2027 entry")
+    assert not st.is_noise("UN Security Council to discuss Kosovo")
+    items = [{"title": t, "source": s} for t, s in (
+        ("Diplomats say the UN Security Council will meet again on the matter next week", "Reuters"),
+        ("Talks at the UN Security Council stall again over the draft on renewing the mission", "AFP"),
+        ("Settlers attack diplomats in the West Bank during the olive harvest", "Daily Sabah"),
+        ("More raids in the West Bank overnight, residents tell Daily Sabah", "BBC"),
+        ("Ministers back President Ruto on the plan after a long debate", "BBC"),
+        ("Kenya: talks hosted by President Ruto resume with a wider group", "BBC"),
+        ("The government says the army will stay as long as needed in the region", "BBC"),
+        ("Critics say the government and the army have not explained the move", "BBC"),
+    )]
+    assert sorted(st.names(items, set())) == [["Ruto", 2], ["UN Security Council", 2], ["West Bank", 2]]

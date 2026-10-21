@@ -245,10 +245,6 @@ function renderOverview() {
   const el = $("#tab-overview");
   if (!el.dataset.built) {
     el.innerHTML = `
-      <section class="block">
-        <div class="block-head"><h2>Needs a look</h2><p>Countries getting more attention than usual, or where coverage has turned more violent or more negative, with the stories behind it.</p></div>
-        <div class="hot-cards" id="hotCards"></div>
-      </section>
       <div class="hero">
         <div class="mapcard">
           <div class="map-head"><h2 id="mapTitle"></h2>
@@ -259,6 +255,10 @@ function renderOverview() {
         </div>
         <div class="side"><div class="panel watch" id="watch"></div></div>
       </div>
+      <section class="block">
+        <div class="block-head"><h2>Needs a look</h2><p>Countries getting more attention than usual, or where coverage has turned more violent or more negative, with the stories behind it.</p></div>
+        <div class="hot-cards" id="hotCards"></div>
+      </section>
       <section class="block">
         <div class="block-head"><h2>Every country at a glance</h2><p>The main story of the past seven days and what coverage is about. Click a country for its stories, charts and links.</p></div>
         <div class="country-grid" id="allCards"></div>

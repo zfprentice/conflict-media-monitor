@@ -1,17 +1,17 @@
 {
- "slots_ingested": 19,
- "slots_remaining": 2,
+ "slots_ingested": 17,
+ "slots_remaining": 3,
  "files_missing": 0,
- "slots_deferred": 2,
+ "slots_deferred": 3,
  "news_failed": 0,
  "news_total": 32,
  "mentions_new": 0,
  "weeks_filled": 3,
  "weeks_empty": 0,
  "months_filled": 5,
- "generated_at": "2026-10-21T17:14:54+00:00",
+ "generated_at": "2026-10-21T21:45:11+00:00",
  "complete_days": 91,
  "history_days": 92,
- "seconds": 98,
+ "seconds": 97,
  "total_countries": 27
 }

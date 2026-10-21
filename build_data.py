@@ -224,8 +224,29 @@ def refresh_news(cfg: dict, p: dict, now: datetime, news: dict, mentions: dict, 
         snap["countries"][iso] = {**st.analyse(this_week, ignore), "final": False, "at": stamp}
     archive.save_week(p["weeks"], snap)
 
-    # 3. finished weeks: one date-bounded search per country, newest week first, then frozen
+    # 3. older watch-term mentions, one month per request, newest first (before past weeks: they matter
+    #    most for reporting and need only about a hundred requests in all)
     budget = BACKFILL_REQUESTS
+    done = set(p["backfill"].read_text().split("\n")) if p["backfill"].exists() else set()
+    for t in cfg.get("watch_terms", []):
+        for a, b in archive.months_between(t.get("backfill_from", "2025-01-01"), today):
+            for q in t["queries"]:
+                key = f"{t['key']}|{q['lang']}|{a}"
+                if key in done or budget <= 0 or not client.usable:
+                    continue
+                budget -= 1
+                items = client.get(q["q"], edition=q["edition"], after=a, before=b)
+                if items is None:
+                    continue
+                stats["mentions_new"] += archive.merge_mentions(mentions[t["key"]], items, term=t["label"],
+                                                                language=q["lang"], found=stamp[:16].replace("T", " "),
+                                                                tag_countries=tag)
+                if b <= today.isoformat():  # a month still in progress is searched again next run
+                    done.add(key)
+                stats["months_filled"] += 1
+    p["backfill"].write_text("\n".join(sorted(k for k in done if k)) + "\n")
+
+    # 4. finished weeks: one date-bounded search per country, newest week first, then frozen
     for w in archive.recent_weeks(today, WEEKS_BACK + 1)[1:]:
         if budget <= 0 or not client.usable:
             break
@@ -247,25 +268,6 @@ def refresh_news(cfg: dict, p: dict, now: datetime, news: dict, mentions: dict, 
             archive.save_week(p["weeks"], snap)
             stats["weeks_filled"] += 1
 
-    # 4. older watch-term mentions, one month per request, newest first
-    done = set(p["backfill"].read_text().split("\n")) if p["backfill"].exists() else set()
-    for t in cfg.get("watch_terms", []):
-        for a, b in archive.months_between(t.get("backfill_from", "2025-01-01"), today):
-            for q in t["queries"]:
-                key = f"{t['key']}|{q['lang']}|{a}"
-                if key in done or budget <= 0 or not client.usable:
-                    continue
-                budget -= 1
-                items = client.get(q["q"], edition=q["edition"], after=a, before=b)
-                if items is None:
-                    continue
-                stats["mentions_new"] += archive.merge_mentions(mentions[t["key"]], items, term=t["label"],
-                                                                language=q["lang"], found=stamp[:16].replace("T", " "),
-                                                                tag_countries=tag)
-                if b <= today.isoformat():  # a month still in progress is searched again next run
-                    done.add(key)
-                stats["months_filled"] += 1
-    p["backfill"].write_text("\n".join(sorted(k for k in done if k)) + "\n")
     print(f"Google News: {client.requests} requests, {client.failed} failed; {stats['mentions_new']} new watch-term "
           f"mentions; {stats['weeks_filled']} past weeks and {stats['months_filled']} past months filled "
           f"({stats['weeks_empty']} country-weeks came back empty and will be retried)", flush=True)

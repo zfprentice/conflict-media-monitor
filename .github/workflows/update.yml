@@ -28,6 +28,8 @@ jobs:
         with:
           python-version: '3.12'
 
+      - run: pip install -r requirements.txt
+
       - name: Ingest GDELT event files and Google News headlines (time-boxed; backlog rolls to the next run)
         if: github.event_name != 'push'
         env:
@@ -36,8 +38,16 @@ jobs:
           PYTHONUNBUFFERED: '1'
         run: python build_data.py
 
-      - name: Commit updated data
-        if: github.event_name != 'push'
+      - name: Rebuild the page from the saved records (code change only, nothing fetched)
+        if: github.event_name == 'push'
+        env:
+          OFFLINE: '1'
+        run: python build_data.py
+
+      # Records are committed; page outputs (latest.json, weekly.json, Excel files) are rebuilt
+      # every run and deployed without being committed. Runs on other branches are dry runs.
+      - name: Commit updated records
+        if: github.event_name != 'push' && github.ref == 'refs/heads/main'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -58,6 +68,7 @@ jobs:
 
   deploy:
     needs: build
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     environment:
       name: github-pages

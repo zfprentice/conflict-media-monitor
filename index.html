@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Conflict Media Monitor</title>
-<meta name="description" content="Daily media attention, tone and framing across 27 conflict-affected and dialogue countries, from GDELT and Google News.">
+<meta name="description" content="What the media is reporting across 27 conflict-affected and dialogue countries: main stories, unusual attention, a weekly report and EIP mentions, from GDELT and Google News.">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='14' fill='%232340a8'/%3E%3Ccircle cx='16' cy='16' r='5' fill='%23e2581c'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -15,11 +15,11 @@
 <div class="wrap">
   <header class="masthead">
     <div>
-      <h1 id="title">Media attention across <span class="count">27</span> countries</h1>
+      <h1 id="title">What the media is reporting across <span class="count">27</span> countries</h1>
       <div class="stamp" id="stamp">Loading the latest run…</div>
     </div>
     <div class="controls" role="group" aria-label="Filters">
-      <input class="search" id="search" type="search" placeholder="Find a country or headline" aria-label="Find a country or headline">
+      <input class="search" id="search" type="search" placeholder="Find a country, story or outlet" aria-label="Find a country, story or outlet">
       <div class="seg" id="tierSeg" role="group" aria-label="Country group">
         <button aria-pressed="true" data-tier="all">All</button>
         <button aria-pressed="false" data-tier="operates">Field presence</button>
@@ -29,7 +29,19 @@
     </div>
   </header>
 
-  <main id="app"><div class="loading">Loading data…</div></main>
+  <nav class="tabs-nav" role="tablist" aria-label="Sections">
+    <a role="tab" href="#overview" data-tab="overview" aria-selected="true">Overview</a>
+    <a role="tab" href="#weekly" data-tab="weekly" aria-selected="false">Weekly report</a>
+    <a role="tab" href="#eip" data-tab="eip" aria-selected="false">EIP in the news</a>
+    <a role="tab" href="#charts" data-tab="charts" aria-selected="false">Charts &amp; data</a>
+  </nav>
+
+  <main id="app">
+    <section class="tab-panel" id="tab-overview" role="tabpanel" aria-label="Overview"><div class="loading">Loading data…</div></section>
+    <section class="tab-panel" id="tab-weekly" role="tabpanel" aria-label="Weekly report" hidden></section>
+    <section class="tab-panel" id="tab-eip" role="tabpanel" aria-label="EIP in the news" hidden></section>
+    <section class="tab-panel" id="tab-charts" role="tabpanel" aria-label="Charts and data" hidden></section>
+  </main>
 
   <footer id="footer"></footer>
 </div>

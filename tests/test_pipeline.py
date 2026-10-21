@@ -38,8 +38,9 @@ def test_spike_detected_with_share_not_raw_count():
     assert m["share_latest"] == 90.0 and m["z_attention"] > 5
     assert m["violence_share_7d"] > m["violence_share_prev30d"] and m["tone_delta"] < -1
     texts = " ".join(f["text"] for f in flags(m))
-    assert "spike" in texts and "Tone darkening" in texts and "Violent-event coverage up" in texts
-    assert "Mediation coverage up" in texts
+    assert "Much more media attention than usual" in texts and "more negative" in texts
+    assert "Violence features more in coverage" in texts
+    assert "peace" not in texts.lower() and "mediation" not in texts.lower()  # diplomacy codes are never flagged
 
 
 def test_steady_series_is_not_flagged():
@@ -193,3 +194,6 @@ def test_config_is_valid():
         assert {"iso3", "name", "region", "tier", "atlas", "news", "fips", "cameo"} <= c.keys()
         assert c["tier"] in {"operates", "dialogue"} and c["fips"]
         assert all(len(f) == 2 for f in c["fips"]) and all(len(k) == 3 for k in c["cameo"])
+        assert all(isinstance(c.get(k, []), list) for k in ("match", "strip", "exclude"))
+    for t in CFG["watch_terms"]:
+        assert t["queries"] and all({"q", "lang", "edition"} <= q.keys() and ":" in q["edition"] for q in t["queries"])

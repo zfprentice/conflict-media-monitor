@@ -2,3 +2,8 @@ __pycache__/
 *.pyc
 .pytest_cache/
 .DS_Store
+# page outputs, rebuilt by every run (OFFLINE=1 python build_data.py to make them locally)
+data/latest.json
+data/weekly.json
+data/*_mentions.json
+data/*.xlsx

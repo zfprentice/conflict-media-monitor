@@ -302,7 +302,7 @@ function renderWatch() {
   $("#watch").innerHTML = `<h2>${esc(w.label)} <small>in the news</small></h2>
     <div class="watch-nums"><div><div class="big num">${f0(w.count_30d)}</div><div class="muted small">mentions, last 30 days</div></div>
       <div><div class="big num">${f0(w.count_quarter)}</div><div class="muted small">in ${esc(w.quarter_label)}</div></div></div>
-    ${w.recent?.length ? `<ul>${w.recent.slice(0, 4).map((i) => `<li><a href="${esc(i.url)}" target="_blank" rel="noopener">${esc(i.title)}</a><div class="faint small">${esc(i.source)}${i.language !== "English" ? `, ${esc(i.language)}` : ""}, ${ago(i.published)}</div></li>`).join("")}</ul>` : `<p class="empty">No mentions recorded yet.</p>`}
+    ${w.recent?.length ? `<ul>${w.recent.slice(0, 4).map((i) => `<li dir="auto"><a href="${esc(i.url)}" target="_blank" rel="noopener">${esc(i.title)}</a><div class="faint small">${esc(i.source)}${i.language !== "English" ? `, ${esc(i.language)}` : ""}, ${ago(i.published)}</div></li>`).join("")}</ul>` : `<p class="empty">No mentions recorded yet.</p>`}
     <a class="link-btn" href="#eip">All mentions and the Excel file →</a>`;
 }
 
@@ -406,7 +406,7 @@ async function renderWeekly() {
         <h3>The week in brief</h3>
         <ul class="brief">
           <li>${unusual.length ? `<b>${unusual.length} of ${entries.length} countries</b> had days of unusually high attention: ${unusual.map((e) => `<a href="#/${e.c.iso3}" data-open="${e.c.iso3}">${esc(e.c.name)}</a> (${e.x.stats.unusual_days.length} ${e.x.stats.unusual_days.length === 1 ? "day" : "days"})`).join(", ")}.` : `No country had a day of unusually high attention${w.current ? " so far" : ""}.`}</li>
-          ${eip.length || (S.data.watch || [])[0] ? `<li>The European Institute of Peace was mentioned in <b>${eip.length}</b> ${eip.length === 1 ? "article" : "articles"} found on Google News${eip.length ? ": " + eip.slice(0, 3).map((m) => `<a href="${esc(m.url)}" target="_blank" rel="noopener">${esc(m.title)}</a> <span class="faint">(${esc(m.source)})</span>`).join("; ") + (eip.length > 3 ? `; and ${eip.length - 3} more in the EIP tab` : "") : ""}.</li>` : ""}
+          ${eip.length || (S.data.watch || [])[0] ? `<li>The European Institute of Peace was mentioned in <b>${eip.length}</b> ${eip.length === 1 ? "article" : "articles"} found on Google News${eip.length ? ": " + eip.slice(0, 3).map((m) => `<a href="${esc(m.url)}" target="_blank" rel="noopener" dir="auto">${esc(m.title)}</a> <span class="faint">(${esc(m.source)})</span>`).join("; ") + (eip.length > 3 ? `; and ${eip.length - 3} more in the EIP tab` : "") : ""}.</li>` : ""}
         </ul>
         ${top.length ? `<h4>Most widely reported stories</h4><ol class="stories">${top.map(({ s, c }) => `<li><span class="chip">${esc(c.name)}</span><a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.title)}</a><div class="meta">${storyMeta(s)}</div></li>`).join("")}</ol>` : ""}
       </section>
@@ -478,7 +478,7 @@ async function renderEip() {
       <div class="wire-tools"><select id="eipLang" aria-label="Language"><option value="all">All languages</option>${langs.map((l) => `<option ${l === S.eipLang ? "selected" : ""}>${esc(l)}</option>`).join("")}</select>
         <span class="muted small">${f0(rows.length)} ${rows.length === 1 ? "mention" : "mentions"}${S.q ? ` matching "${esc(S.q)}"` : ""}</span></div>
       <div class="ledger-wrap"><table class="mentions"><thead><tr><th>Published</th><th>Headline</th><th>Outlet</th><th>Language</th><th>Countries named</th></tr></thead>
-        <tbody>${rows.slice(0, S.eipN).map((m) => `<tr><td class="num">${m.published ? dateLabel(m.published) : "–"}</td><td><a href="${esc(m.url)}" target="_blank" rel="noopener">${esc(m.title)}</a></td><td>${esc(m.source)}</td><td>${esc(m.language)}</td><td>${esc(m.countries)}</td></tr>`).join("") || `<tr><td colspan="5" class="empty">No mentions match.</td></tr>`}</tbody></table></div>
+        <tbody>${rows.slice(0, S.eipN).map((m) => `<tr><td class="num">${m.published ? dateLabel(m.published) : "–"}</td><td><a href="${esc(m.url)}" target="_blank" rel="noopener" dir="auto">${esc(m.title)}</a></td><td dir="auto">${esc(m.source)}</td><td>${esc(m.language)}</td><td>${esc(m.countries)}</td></tr>`).join("") || `<tr><td colspan="5" class="empty">No mentions match.</td></tr>`}</tbody></table></div>
       ${rows.length > S.eipN ? `<button class="more" id="eipMore">Show 50 more</button>` : ""}
     </section>`;
   $("#eipLang").onchange = (e) => { S.eipLang = e.target.value; S.eipN = 50; renderEip(); };

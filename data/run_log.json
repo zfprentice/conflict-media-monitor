@@ -1,5 +1,5 @@
 {
- "slots_ingested": 34,
+ "slots_ingested": 35,
  "slots_remaining": 2,
  "files_missing": 0,
  "slots_deferred": 2,
@@ -9,9 +9,9 @@
  "weeks_filled": 0,
  "weeks_empty": 0,
  "months_filled": 5,
- "generated_at": "2026-11-13T11:02:20+00:00",
+ "generated_at": "2026-11-13T19:44:41+00:00",
  "complete_days": 91,
  "history_days": 115,
- "seconds": 45,
+ "seconds": 44,
  "total_countries": 27
 }
